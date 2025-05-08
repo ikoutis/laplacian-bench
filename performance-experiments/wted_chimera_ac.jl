@@ -71,7 +71,7 @@ nWarmup = 1000
 println("i = $(iWarmup)")
 println("n = $(nWarmup)")
 
-a = chimera(nWarmup,iWarmup) # this is already weighted
+a = wted_chimera(nWarmup,iWarmup) # this is already weighted
 b = randn(nWarmup)
 b = lap(a) * b
 b = b ./ norm(b)
@@ -94,7 +94,7 @@ while time() - t0 < 60 * 60 * hours
     println("i = $(i)")
     println("n = $(n)")
     
-    a = chimera(n,i)
+    a = wted_chimera(n,i)
     tn = "wted_chimera($n,$i)"
     b = randn(n)
     b = lap(a) * b

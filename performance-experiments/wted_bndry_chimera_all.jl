@@ -70,7 +70,7 @@ nWarmup = 1000
 println("i = $(iWarmup)")
 println("n = $(nWarmup)")
 
-M = bndry_chimera(nWarmup,iWarmup) # this is already weighted
+M = wted_bndry_chimera(nWarmup,iWarmup) # this is already weighted
 b = randn(size(M,1))
 b = M * b
 b = b ./ norm(b)
@@ -93,7 +93,7 @@ while time() - t0 < 60 * 60 * hours
     println("i = $(i)")
     println("n = $(n)")
     
-    M = bndry_chimera(n,i)
+    M = wted_bndry_chimera(n,i)
     tn = "wted_bndry_chimera($n,$i)"
     b = randn(size(M,1))
     b = M * b
