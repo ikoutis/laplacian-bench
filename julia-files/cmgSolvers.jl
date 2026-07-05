@@ -71,9 +71,11 @@ end
 
 Solver factory for the SDDM path: receives the SDDM matrix itself.
 `cmg_preconditioner_lap` accepts SDD matrices directly (strictly dominant
-rows are grounded via an augmented coordinate); matrices with positive
-off-diagonals are rejected by CMG's validateInput!, which the harness
-try/catch records as an (Inf,...) row.
+rows are grounded via an augmented coordinate). The benchmark's SuiteSparse
+selection is all SDDM / near-SDDM with non-positive off-diagonals (see
+Tutorial.md), so CMG accepts every benchmark input; validateInput! only
+rejects an asymmetric matrix or a positive off-diagonal, and the harness
+try/catch would record such a case as an (Inf,...) row.
 """
 function make_cmg_sddm(cycle::Symbol; theta = 0.75, inner_tol = 0.25)
     return function (M; tol = 1e-8, maxits = 1000, verbose = false, args...)

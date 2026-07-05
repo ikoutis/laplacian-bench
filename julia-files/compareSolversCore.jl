@@ -76,7 +76,10 @@ Time one native solver on one system. `mat` is whatever the solver consumes
 solvers); `sys` is the system matrix used for the residual check (lap(mat) in
 the Laplacian case, mat itself in the SDDM case). Returns
 (solve_time, build_time, iters, relerr, x), or (Inf,Inf,Inf,Inf,Inf) if the
-solver threw — e.g. CMG's validateInput! rejecting positive off-diagonals.
+solver threw. This is a general safety net: the curated benchmark matrices are
+all SDDM / near-SDDM (see Tutorial.md), so no benchmark input trips CMG's
+validateInput!, but it guards against an asymmetric or arbitrary user-supplied
+matrix (validateInput! throws on asymmetry or a positive off-diagonal).
 =#
 function testSolverCore(solver, mat, sys, b, tol, maxits, verbose; seed = nothing)
 

@@ -117,10 +117,16 @@ iterations; each hides budget-capped inner FCG work at coarse levels, and one
 work-comparable across columns — compare `_tot`/`_solve` (and `_err`, which
 the harness computes uniformly as `norm(A*x-b)/norm(b)`).
 
-A failed solver run (exception, e.g. CMG rejecting positive off-diagonals on
-a few SuiteSparse matrices) records `Inf` in that row and the run continues.
-Note the native harness imposes no wall-clock limit per solver — only
-`--maxits` and the Slurm job time bound a pathological case.
+A failed solver run (exception) records `Inf` in that row and the run
+continues. The curated benchmark matrices are all SDDM or near-SDDM with
+non-positive off-diagonals (`Tutorial.md`), so CMG accepts every one of them —
+`cmg_solve`'s `validateInput!` only rejects an asymmetric matrix or a positive
+off-diagonal, neither of which occurs here. The three "approximately SDDM"
+SuiteSparse matrices (`McRae/ecology1`, `McRae/ecology2`, `HB/nos7`) are merely
+slightly not diagonally dominant (~1e-16) and are handled normally. The
+try/catch is a general safety net for arbitrary user-supplied inputs. Note the
+native harness imposes no wall-clock limit per solver — only `--maxits` and the
+Slurm job time bound a pathological case.
 
 ## The superscript
 
