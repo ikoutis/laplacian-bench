@@ -1,0 +1,41 @@
+name = "LaplacianBenchEnv"
+uuid = "b1a9c6f2-3c1d-4e7a-9b6e-1c2d3e4f5a6b"
+authors = ["laplacian-bench contributors"]
+version = "0.1.0"
+
+# Slim environment for the approximate-Cholesky vs CMG K-cycle benchmark
+# (performance-experiments/chol_vs_kcycle.jl and friends).
+#
+# Deliberately excludes MATLAB.jl, CSV, DataFrames, Polynomials and the
+# PETSc/HyPre glue needed by the original paper scripts: this environment only
+# runs the pure-Julia solvers (Laplacians.approxchol_* and
+# CombinatorialMultigrid.cmg_solve).
+#
+# NOTE: CombinatorialMultigrid's registered release (0.2.0) predates the
+# K-cycle solver. Run `julia --project=. setup.jl` once: it adds the package
+# from GitHub pinned to a known-good revision and instantiates everything.
+# Once a Manifest.toml generated that way is committed, `Pkg.instantiate()`
+# alone reproduces the environment.
+
+[deps]
+CombinatorialMultigrid = "44808c39-7784-4d8d-8dbc-3ef853c709a1"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+Laplacians = "6f8e5838-0efe-5de0-80a3-5fb4f8dbb1de"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
+MatrixMarket = "4d4711f2-db25-561a-b6b3-d35e7d4047d3"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[compat]
+CombinatorialMultigrid = "0.2"
+JLD2 = "0.4, 0.5, 0.6"
+Laplacians = "1.4"
+MAT = "0.10"
+MatrixMarket = "0.3, 0.4, 0.5"
+julia = "1.10"
