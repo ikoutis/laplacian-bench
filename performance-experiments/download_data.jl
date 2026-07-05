@@ -37,6 +37,8 @@ let args = ARGS
 end
 scale in (:smoke, :medium, :paper) || (println(stderr, "bad --scale $(scale)"); exit(1))
 
+allow_download!(true)   # this is the prefetch tool; always permit downloads
+
 println("prefetching benchmark data at scale = $(scale) into $(MATRIX_DIR)")
 ok, failed = 0, 0
 

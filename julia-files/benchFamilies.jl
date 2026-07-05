@@ -46,6 +46,15 @@ end
 const MATRIX_DIR = normpath(joinpath(@__DIR__, "..", "matrix-files"))
 const SS_URL = "http://sparse-files.engr.tamu.edu/mat/"
 
+# Global download policy, set once by the runner (chol_vs_kcycle.jl) or
+# download_data.jl. When true (default), every downloadable family fetches
+# missing matrices on demand and caches them under matrix-files/; when false
+# (runner --offline / CVK_OFFLINE), no run-time family touches the network and
+# only already-cached/prefetched data is used. Applied uniformly to the
+# SuiteSparse and IPM families (SPE is Dropbox-only and always local).
+const ALLOW_DOWNLOAD = Ref(true)
+allow_download!(b::Bool) = (ALLOW_DOWNLOAD[] = b)
+
 struct BenchInstance
     base::String        # short name for logs/progress
     load::Function      # (baseseed, rep) -> nothing | (kind, mat, label)
@@ -79,25 +88,31 @@ function readSSMat(path)
 end
 
 #=
-Cached SuiteSparse fetch: like julia-files/downloadSS.jl but the .mat file is
-cached under matrix-files/ (keyed by the base name, as downloadSS names it)
-and never deleted. `download=false` makes it purely local (compute nodes).
-Returns the matrix, or nothing if unavailable.
+Ensure a SuiteSparse .mat is cached under matrix-files/ (keyed by the base
+name, as downloadSS names it) and never deleted. Downloads it if missing and
+downloads are allowed. Returns the local path, or nothing if unavailable
+(offline and not cached, or the fetch failed). Does not parse the matrix.
 =#
-function loadSSCached(fullname; download = true)
+function ensureSSCached(fullname; download = ALLOW_DOWNLOAD[])
     base = String(split(fullname, '/')[end])
     path = joinpath(MATRIX_DIR, base * ".mat")
-    if !isfile(path)
-        download || return nothing
-        try
-            tmp = path * ".part"
-            Downloads.download(string(SS_URL, fullname, ".mat"), tmp)
-            mv(tmp, path; force = true)
-        catch e
-            @warn "download failed for SuiteSparse matrix $(fullname)" exception = e
-            return nothing
-        end
+    isfile(path) && return path
+    download || return nothing
+    try
+        tmp = path * ".part"
+        Downloads.download(string(SS_URL, fullname, ".mat"), tmp)
+        mv(tmp, path; force = true)
+        return path
+    catch e
+        @warn "download failed for SuiteSparse matrix $(fullname)" exception = e
+        return nothing
     end
+end
+
+"Cached SuiteSparse fetch: returns the matrix, or nothing if unavailable."
+function loadSSCached(fullname; download = ALLOW_DOWNLOAD[])
+    path = ensureSSCached(fullname; download = download)
+    path === nothing && return nothing
     try
         return readSSMat(path)
     catch e
@@ -111,7 +126,7 @@ IPM matrices (chimeraIPM / spielmanIPM): prefer the .mm files the original
 scripts read, then a locally cached .mat (as downloadIPM.jl fetches them),
 then a live SuiteSparse download.
 =#
-function loadIPM(name; download = true)
+function loadIPM(name; download = ALLOW_DOWNLOAD[])
     M = loadMMCached(name)
     M === nothing || return M
     path = joinpath(MATRIX_DIR, name * ".mat")
@@ -127,6 +142,13 @@ end
 
 ipmAvailable(name) = isfile(joinpath(MATRIX_DIR, name * ".mm")) ||
                      isfile(joinpath(MATRIX_DIR, name * ".mat"))
+
+# True if an IPM matrix is (or can be made) available: already local, or
+# downloadable now (and downloads allowed). Used for instance-list discovery
+# — like the *_ac.jl scripts, the sweep stops at the first name that isn't
+# obtainable. Downloads eagerly so the run-time loader reads from cache.
+ensureIPMCached(name; download = ALLOW_DOWNLOAD[]) =
+    ipmAvailable(name) || (ensureSSCached(name; download = download) !== nothing)
 
 "suitesparse-selected.jld2 holds the curated SuiteSparse matrix name list."
 function suitesparseNames()
@@ -258,7 +280,7 @@ function chimeraIPMInstances(scale; n = nothing, limit = nothing)
         curTargetEps = 1 / 10^j
         for cnt in cnts
             name = "uc.i$(i).eps$(curTargetEps).$(cnt)"
-            if !ipmAvailable(name)
+            if !ensureIPMCached(name)
                 break   # matches chimeraIPM_ac.jl: stop at the first missing count
             end
             push!(insts, BenchInstance("chimeraIPM $(name)",
@@ -284,7 +306,7 @@ function spielmanIPMInstances(scale; n = nothing, limit = nothing)
     insts = BenchInstance[]
     for k in ks, i in is
         name = "sk$(k)i$(i)"
-        if !ipmAvailable(name)
+        if !ensureIPMCached(name)
             break   # matches spielmanIPM_ac.jl: stop at the first missing index
         end
         push!(insts, BenchInstance("spielmanIPM $(name)",

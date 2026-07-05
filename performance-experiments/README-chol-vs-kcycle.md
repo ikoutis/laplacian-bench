@@ -84,9 +84,22 @@ julia --project=.. chol_vs_kcycle.jl <family|all>
 | `uni_chimera` / `wted_chimera` | (weighted) chimeras, Laplacian path | generated |
 | `uni_bndry_chimera` / `wted_bndry_chimera` | chimeras with boundary, SDDM path | generated |
 
-Missing data files are skipped with a warning (the family then simply
-contributes fewer rows); run `download_data.jl` first on a machine with
-internet access.
+### Data fetching (uniform across families)
+
+By default a run **fetches on demand**: any `suitesparse` / `chimeraIPM` /
+`spielmanIPM` matrix not already under `matrix-files/` is downloaded from the
+SuiteSparse collection and cached there the first time it is needed (so the
+first such run does real network + disk I/O; later runs read the cache). If a
+matrix cannot be obtained (offline, or genuinely absent upstream) the affected
+instances are skipped with a warning and the family simply contributes fewer
+rows. `spe` is the exception — those files are Dropbox-only (see `Tutorial.md`)
+and are never auto-fetched; drop them into `matrix-files/` yourself.
+
+Pass `--offline` (or set `CVK_OFFLINE=1`) to forbid all run-time downloading:
+every family then uses only already-cached/prefetched data and skips whatever
+is missing. Use this on firewalled compute nodes after prefetching on a login
+node with `download_data.jl` (which always downloads, regardless of the flag).
+Generated families (grids, chimeras, `sachdeva_star`) never touch the network.
 
 ### Repetitions and randomness
 
@@ -150,6 +163,8 @@ cd laplacian-bench/performance-experiments/wulver
 ./setup_wulver.sh --scale paper      # Julia (module or juliaup 1.10), Pkg env, data
 # edit chol_vs_kcycle_array.sbatch: --account=PI_UCID_HERE -> your PI account
 #   (find it: sacctmgr show associations user=$USER format=account%30)
+# if compute nodes are firewalled, run jobs offline against the prefetched cache:
+#   export CVK_OFFLINE=1   (submit_wulver.sh forwards the environment to the jobs)
 ./submit_wulver.sh --scale paper     # emits manifests, sbatches small + large tiers
 squeue -u $USER                      # watch; logs in wulver/logs/
 julia --project=../.. ../summarize_chol_vs_kcycle.jl   # when done

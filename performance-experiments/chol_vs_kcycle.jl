@@ -53,8 +53,10 @@ const USAGE = """
 usage: julia --project=.. chol_vs_kcycle.jl <family|all>
            [--scale smoke|medium|paper] [--n 1e6[,1e7]] [--reps R] [--seed S]
            [--tol T] [--maxits K] [--solvers ac,ac-s2m2,cmg-k,cmg-v]
-           [--limit N] [--max-hours H] [--out DIR] [--no-warmup]
+           [--limit N] [--max-hours H] [--out DIR] [--no-warmup] [--offline]
 families: $(join(FAMILY_ORDER, " ")), or: all
+--offline (or CVK_OFFLINE=1): never fetch matrices at run time; use only
+  already-cached/prefetched data (see download_data.jl).
 """
 
 function parseArgs(args)
@@ -64,6 +66,7 @@ function parseArgs(args)
         :solvers => nothing, :limit => nothing, :maxhours => nothing,
         :out => normpath(joinpath(@__DIR__, "..", "performance-analyses", "chol-vs-kcycle")),
         :warmup => true,
+        :offline => lowercase(get(ENV, "CVK_OFFLINE", "")) in ("1", "true", "yes"),
     )
     i = 1
     while i <= length(args)
@@ -97,6 +100,8 @@ function parseArgs(args)
             opts[:out] = abspath(needsval(a))
         elseif a == "--no-warmup"
             opts[:warmup] = false
+        elseif a == "--offline"
+            opts[:offline] = true
         elseif a == "--help" || a == "-h"
             println(USAGE)
             exit(0)
@@ -234,8 +239,9 @@ function main()
         println(stderr, "argument error: ", sprint(showerror, e))
         exit(1)
     end
+    allow_download!(!opts[:offline])
     println("solvers: ", join([t.name for t in tests_lap], ", "))
-    println("scale=$(opts[:scale]) reps=$(opts[:reps]) seed=$(opts[:seed]) maxits=$(opts[:maxits])")
+    println("scale=$(opts[:scale]) reps=$(opts[:reps]) seed=$(opts[:seed]) maxits=$(opts[:maxits]) offline=$(opts[:offline])")
 
     mkpath(opts[:out])
 
