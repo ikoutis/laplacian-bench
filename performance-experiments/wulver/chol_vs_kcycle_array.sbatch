@@ -69,6 +69,7 @@ if [[ -z "$TASK_ARGS" ]]; then
 fi
 
 echo "host:   $(hostname)"
+echo "depot:  ${JULIA_DEPOT_PATH:-<unset -> \$HOME/.julia>}"
 echo "task:   ${SLURM_ARRAY_TASK_ID}: chol_vs_kcycle.jl $TASK_ARGS"
 echo "julia:  $(command -v julia) ($(julia --version))"
 
