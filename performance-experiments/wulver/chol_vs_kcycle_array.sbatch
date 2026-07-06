@@ -43,6 +43,11 @@ if command -v module >/dev/null 2>&1; then
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
+# Keep the Julia depot off the small $HOME quota. Honours an already-exported
+# JULIA_DEPOT_PATH (e.g. via sbatch --export=ALL); otherwise defaults to the
+# project space the login-node setup uses. Edit the fallback for your site.
+export JULIA_DEPOT_PATH="${JULIA_DEPOT_PATH:-/project/ikoutis/$USER/.julia}"
+
 # All four solvers are single-threaded; pin the BLAS/OpenMP pools so timings
 # are comparable and tasks stay inside their --cpus-per-task allocation.
 export JULIA_NUM_THREADS=1

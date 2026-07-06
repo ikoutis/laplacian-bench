@@ -33,6 +33,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXP_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT="$(dirname "$EXP_DIR")"
 
+# Keep the Julia depot (packages, artifacts, precompile cache) off the small
+# $HOME quota. Honours an already-exported JULIA_DEPOT_PATH; otherwise defaults
+# to project space. The sbatch files use the same default so setup and jobs
+# share one depot. Edit the fallback path for your site.
+export JULIA_DEPOT_PATH="${JULIA_DEPOT_PATH:-/project/ikoutis/$USER/.julia}"
+echo "using JULIA_DEPOT_PATH=$JULIA_DEPOT_PATH"
+
 # 1. Wulver module environment (harmless elsewhere).
 if command -v module >/dev/null 2>&1; then
     module purge || true

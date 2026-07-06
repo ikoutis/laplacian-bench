@@ -30,6 +30,9 @@ if command -v module >/dev/null 2>&1; then
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
+# Keep the Julia depot off the small $HOME quota (see chol_vs_kcycle_array.sbatch).
+export JULIA_DEPOT_PATH="${JULIA_DEPOT_PATH:-/project/ikoutis/$USER/.julia}"
+
 export JULIA_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
