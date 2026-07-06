@@ -342,6 +342,26 @@ function chimeraInstances(gen, genname::String, kind::Symbol, scale; n = nothing
     return applyLimit(insts, limit)
 end
 
+# Laplacians 1.4's `uni_bndry_chimera` / `wted_bndry_chimera` build the interior
+# index set with a Float64 step range (`setdiff(1:n, 1:n^(1/3):n)`), so `int`
+# becomes a `Vector{Float64}` and `L[int, int]` throws `invalid index: 2.0 of
+# type Float64` on modern Julia. Reimplement with the integer step Laplacians
+# master uses (`ceil(Int, n^(1/3))`) so the boundary nodes are actually removed.
+function uni_bndry_chimera_fixed(n::Integer, k::Integer)
+    a = Laplacians.chimera(n, k)
+    Laplacians.unweight!(a)
+    L = Laplacians.lap(a)
+    int = setdiff(1:n, 1:ceil(Int, n^(1 / 3)):n)
+    return L[int, int]
+end
+
+function wted_bndry_chimera_fixed(n::Integer, k::Integer)
+    a = Laplacians.wted_chimera(n, k)
+    L = Laplacians.lap(a)
+    int = setdiff(1:n, 1:ceil(Int, n^(1 / 3)):n)
+    return L[int, int]
+end
+
 # ---------------------------------------------------------------- registry
 
 const FAMILIES = Dict{String,BenchFamily}(
@@ -359,13 +379,13 @@ const FAMILIES = Dict{String,BenchFamily}(
             chimeraInstances(uni_chimera, "uni_chimera", :lap, scale; n = n, limit = limit)),
     "uni_bndry_chimera" => BenchFamily("uni_bndry_chimera", 1e-8, true,
         (scale; n = nothing, limit = nothing) ->
-            chimeraInstances(uni_bndry_chimera, "uni_bndry_chimera", :sddm, scale; n = n, limit = limit)),
+            chimeraInstances(uni_bndry_chimera_fixed, "uni_bndry_chimera", :sddm, scale; n = n, limit = limit)),
     "wted_chimera" => BenchFamily("wted_chimera", 1e-8, true,
         (scale; n = nothing, limit = nothing) ->
             chimeraInstances(wted_chimera, "wted_chimera", :lap, scale; n = n, limit = limit)),
     "wted_bndry_chimera" => BenchFamily("wted_bndry_chimera", 1e-8, true,
         (scale; n = nothing, limit = nothing) ->
-            chimeraInstances(wted_bndry_chimera, "wted_bndry_chimera", :sddm, scale; n = n, limit = limit)),
+            chimeraInstances(wted_bndry_chimera_fixed, "wted_bndry_chimera", :sddm, scale; n = n, limit = limit)),
 )
 
 # Order used by `all`, the superscript and the Slurm manifests.
