@@ -41,7 +41,11 @@ fi
 
 # 2. Julia: site module, existing binary, or juliaup.
 if ! command -v julia >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
-    module load Julia 2>/dev/null || module load julia 2>/dev/null || true
+    # Pin the Julia module: Project.toml requires >=1.10 and Wulver has no 1.10
+    # module (only 1.9.3, 1.11.x, 1.12.x). 1.11.9 is the newest stable release
+    # the deps precompile cleanly on; the bare default is 1.12.6, which is
+    # riskier for older packages like Laplacians. Fall back if 1.11.9 is absent.
+    module load Julia/1.11.9 2>/dev/null || module load Julia 2>/dev/null || module load julia 2>/dev/null || true
 fi
 if ! command -v julia >/dev/null 2>&1 && [[ -x "$HOME/.juliaup/bin/julia" ]]; then
     export PATH="$HOME/.juliaup/bin:$PATH"

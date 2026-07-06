@@ -160,7 +160,7 @@ spe16m). Default reps: paper 3, medium 5, smoke 2.
 ```bash
 # on a LOGIN node (compute nodes have no internet):
 cd laplacian-bench/performance-experiments/wulver
-./setup_wulver.sh --scale paper      # Julia (module or juliaup 1.10), Pkg env, data
+./setup_wulver.sh --scale paper      # Julia (module Julia/1.11.9 or juliaup 1.10), Pkg env, data
 # edit chol_vs_kcycle_array.sbatch: --account=PI_UCID_HERE -> your PI account
 #   (find it: sacctmgr show associations user=$USER format=account%30)
 # if compute nodes are firewalled, run jobs offline against the prefetched cache:

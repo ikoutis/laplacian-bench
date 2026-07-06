@@ -24,7 +24,9 @@ set -u
 if command -v module >/dev/null 2>&1; then
     module purge || true
     module load wulver || true
-    command -v julia >/dev/null 2>&1 || module load Julia 2>/dev/null || module load julia 2>/dev/null || true
+    # Pin Julia/1.11.9 (see setup_wulver.sh) so batch jobs match the setup env
+    # and don't silently pick up the 1.12.6 default.
+    command -v julia >/dev/null 2>&1 || module load Julia/1.11.9 2>/dev/null || module load Julia 2>/dev/null || module load julia 2>/dev/null || true
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
