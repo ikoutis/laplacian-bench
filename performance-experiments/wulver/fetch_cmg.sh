@@ -28,9 +28,15 @@ URL="https://github.com/ikoutis/CombinatorialMultigrid.jl.git"
 
 if [[ -d "$DEST/.git" ]]; then
     echo "updating $DEST -> $REV"
-    git -C "$DEST" fetch origin "$REV"
-    git -C "$DEST" checkout "$REV"
-    git -C "$DEST" pull --ff-only origin "$REV" || true   # no-op for a detached tag/commit
+    # Tolerate a fetch hiccup when a usable checkout already exists. Fall back to
+    # a full fetch so a commit SHA (which `fetch origin <sha>` may reject) still
+    # resolves.
+    git -C "$DEST" fetch origin "$REV" 2>/dev/null \
+        || git -C "$DEST" fetch origin \
+        || echo "warning: git fetch failed; using the existing checkout" >&2
+    git -C "$DEST" checkout "$REV" \
+        || echo "warning: could not checkout $REV; leaving current HEAD" >&2
+    git -C "$DEST" pull --ff-only origin "$REV" 2>/dev/null || true   # no-op for a detached tag/commit
 else
     echo "cloning $URL -> $DEST"
     git clone "$URL" "$DEST"

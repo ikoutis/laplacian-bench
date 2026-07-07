@@ -28,7 +28,10 @@ using Pkg
 
 Pkg.activate(@__DIR__)
 
-const CMG_DEFAULT_REV = "08c515ed76aabc4caef08abc8bc60b98a549ea1e"
+# Pinned CombinatorialMultigrid revision. This one includes the degree-1/2
+# elimination branch (the cmg-*-elim columns); keep it in sync with what
+# performance-experiments/wulver/fetch_cmg.sh checks out for reproducibility.
+const CMG_DEFAULT_REV = "98fe870ca505883b3d8d7e6da4eef9b571c92603"
 const VENDORED_CMG = joinpath(@__DIR__, "CombinatorialMultigrid.jl")
 
 if haskey(ENV, "CMG_DEV")
@@ -50,4 +53,8 @@ else
     Pkg.precompile()
 end
 
-@info "Environment ready. Commit the generated Manifest.toml to pin it."
+# Note: a Manifest.toml generated from a develop-path CMG (CMG_DEV or the in-repo
+# checkout) encodes a machine-specific path — don't commit that one for sharing.
+# To pin a portable environment, use CMG_REV / CMG_DEFAULT_REV and commit the
+# resulting Manifest.
+@info "Environment ready."

@@ -60,8 +60,10 @@ julia --version
 # 2b. Fetch CombinatorialMultigrid.jl into the repo (pure git — safe here on the
 #     login node). setup.jl then develops this local checkout instead of doing a
 #     run-time GitHub fetch, so compute nodes need no internet. Override the
-#     branch/tag with CMG_FETCH_REV (default main).
-"$SCRIPT_DIR/fetch_cmg.sh" --rev "${CMG_FETCH_REV:-main}"
+#     branch/tag with CMG_FETCH_REV (default main). Guarded so a transient git
+#     failure doesn't abort setup when a usable checkout already exists.
+"$SCRIPT_DIR/fetch_cmg.sh" --rev "${CMG_FETCH_REV:-main}" \
+    || echo "WARNING: fetch_cmg.sh failed; continuing with any existing checkout" >&2
 
 # 3. Julia project. Precompilation is deferred (SETUP_SKIP_PRECOMPILE=1): it
 #    happens on first `using` on a compute node, so this step stays light — some
@@ -92,14 +94,19 @@ mkdir -p "$SCRIPT_DIR/logs"
 echo
 if [[ "$SETUP_JULIA_FAILED" == "1" ]]; then
     cat <<NOTE
-NOTE: the Julia instantiate step did not finish on this (login) node. On clusters
-that restrict compute on the login node, run it once on a COMPUTE node — the
-in-repo CombinatorialMultigrid.jl checkout makes it fully offline:
-    srun --account=<acct> --partition=general --qos=standard \\
-         --cpus-per-task=4 --mem=32G --time=01:00:00 --pty bash
-    cd "$ROOT"
-    export JULIA_DEPOT_PATH=<your depot, e.g. /project/<PI>/\$USER/.julia>
-    JULIA_PKG_OFFLINE=true julia --project=. setup.jl
+NOTE: the Julia instantiate step did not finish on this (login) node.
+ * If it downloaded everything and only the compile/precompile choked, rerun it
+   on a COMPUTE node — the in-repo CombinatorialMultigrid.jl checkout makes that
+   fully offline:
+       srun --account=<acct> --partition=general --qos=standard \\
+            --cpus-per-task=4 --mem=32G --time=01:00:00 --pty bash
+       cd "$ROOT"
+       export JULIA_DEPOT_PATH=<your depot, e.g. /project/<PI>/\$USER/.julia>
+       JULIA_PKG_OFFLINE=true julia --project=. setup.jl
+ * If it failed while DOWNLOADING (couldn't reach the network), fix connectivity
+   and rerun THIS script on the login node first — an offline compute node can
+   never fetch CombinatorialMultigrid's deps (BenchmarkTools, LDLFactorizations,
+   artifacts) if they aren't already in your depot.
 
 NOTE
 fi
