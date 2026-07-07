@@ -1,8 +1,7 @@
-name = "LaplacianBenchEnv"
-uuid = "b1a9c6f2-3c1d-4e7a-9b6e-1c2d3e4f5a6b"
-authors = ["laplacian-bench contributors"]
-version = "0.1.0"
-
+# Anonymous environment — deliberately no name/uuid. With them, Pkg.precompile()
+# treats the environment itself as a package and fails with "Missing source file
+# for ... LaplacianBenchEnv" (there is no src/); nothing imports it by name.
+#
 # Slim environment for the approximate-Cholesky vs CMG K-cycle benchmark
 # (performance-experiments/chol_vs_kcycle.jl and friends).
 #
