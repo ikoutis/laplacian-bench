@@ -1,8 +1,8 @@
 #==========================================================
 Spielman IPM elimination demo.
 
-Loads the real Spielman IPM Laplacians (the `spielmanIPM` family, `sk<k>i<i>`,
-downloaded/cached from SuiteSparse) and, for each one, reports the surviving
+Loads the real Spielman IPM graphs (the `spielmanIPM` family, `Spielman_k<k>`
+in the SuiteSparse FlowIPM22 group) and, for each one, reports the surviving
 "core" size after exact degree-1/2 elimination, then compares four solvers on
 build time, solve time, total time, iterations, and true relative residual:
 
@@ -19,11 +19,11 @@ column that quantifies how tree-like each matrix is.
 Usage (from performance-experiments/, with the project active):
     julia --project=.. spielman_elim_demo.jl
     julia --project=.. spielman_elim_demo.jl --scale medium
-    julia --project=.. spielman_elim_demo.jl --names sk100i1,sk200i3,sk300i5
+    julia --project=.. spielman_elim_demo.jl --names Spielman_k100,Spielman_k300,Spielman_k600
     julia --project=.. spielman_elim_demo.jl --scale paper --limit 10 --maxits 2000
 
 Options (defaults in brackets):
-    --scale smoke|medium|paper   which sk<k>i<i> sweep to load        [medium]
+    --scale smoke|medium|paper   which Spielman_k<k> sweep to load    [medium]
     --names a,b,...              explicit matrix names (overrides --scale)
     --limit N                    cap number of matrices
     --solvers a,b,...            subset/superset of the columns
@@ -97,8 +97,10 @@ function spielman_instances(opts)
         insts = [BenchInstance("spielmanIPM $(nm)", (bs, rep) -> begin
                      L = loadIPM(nm)
                      L === nothing && return nothing
-                     a, _ = adj(L)
-                     (:lap, a, nm)
+                     # FlowIPM22 graphs are stored as adjacency (zero diagonal);
+                     # ipmAdjacency passes those through and only adj()s a genuine
+                     # Laplacian — matching the family loaders in benchFamilies.jl.
+                     (:lap, ipmAdjacency(L), nm)
                  end) for nm in opts[:names]]
         return applyLimit(insts, opts[:limit])
     end
@@ -119,7 +121,7 @@ println("BLAS threads: ", BLAS.get_num_threads(), "\n")
 if isempty(instances)
     println("No Spielman matrices available. Fetch them first, e.g.:")
     println("  julia --project=.. performance-experiments/download_data.jl --scale $(opts[:scale])")
-    println("or drop sk<k>i<i>.mat/.mm into matrix-files/ and rerun (add --offline).")
+    println("or drop Spielman_k<k>.mat/.mm into matrix-files/ and rerun (add --offline).")
     exit(0)
 end
 
