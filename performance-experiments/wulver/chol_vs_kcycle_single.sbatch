@@ -30,6 +30,11 @@ if command -v module >/dev/null 2>&1; then
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
+# Keep the Julia depot off the small $HOME quota (see chol_vs_kcycle_array.sbatch).
+# Set UNCONDITIONALLY after module load; the Julia module clobbers
+# JULIA_DEPOT_PATH, so override the location via CVK_DEPOT instead.
+export JULIA_DEPOT_PATH="${CVK_DEPOT:-/project/ikoutis/$USER/.julia}"
+
 export JULIA_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1

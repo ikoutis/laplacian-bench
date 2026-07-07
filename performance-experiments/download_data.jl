@@ -64,58 +64,48 @@ for name in names
     GC.gc()
 end
 
-# ---- chimeraIPM -----------------------------------------------------------
-is, js, cnts = scale === :paper  ? (1:5, 1:6, 1:6) :
-               scale === :medium ? (1:2, 1:2, 1:3) :
-                                   (1:1, 1:1, 1:1)
-println("== chimeraIPM (uc.i*.eps*.*) ==")
-for i in is, j in js
-    curTargetEps = 1 / 10^j
-    for cnt in cnts
-        name = "uc.i$(i).eps$(curTargetEps).$(cnt)"
-        if ipmAvailable(name)
-            println("  $(name) already cached")
-            global ok += 1
-            continue
-        end
-        print("  $(name) ... ")
-        M = loadSSCached(name)
-        if M === nothing
-            # matches downloadIPM.jl: not every (eps, cnt) slot exists upstream
-            println("not available upstream; stopping this eps series")
-            break
-        end
+# ---- chimeraIPM (FlowIPM22 uni_chimera_i*) --------------------------------
+imax = scale === :paper ? 5 : scale === :medium ? 3 : 1
+println("== chimeraIPM (FlowIPM22/uni_chimera_i*) ==")
+for i in 1:imax
+    name = "uni_chimera_i$(i)"
+    if ipmAvailable(name)
+        println("  $(name) already cached")
+        global ok += 1
+        continue
+    end
+    print("  $(name) ... ")
+    if ensureIPMCached(name)
         println("ok")
         global ok += 1
-        M = nothing
-        GC.gc()
+    else
+        println("not available upstream")
+        global failed += 1
     end
+    GC.gc()
 end
 
-# ---- spielmanIPM ----------------------------------------------------------
-ks, sis = scale === :paper  ? (100:100:600, 1:11) :
-          scale === :medium ? (100:100:200, 1:3) :
-                              (100:100:100, 1:1)
-println("== spielmanIPM (sk<k>i<i>) ==")
+# ---- spielmanIPM (FlowIPM22 Spielman_k*; k500/k600 are multi-GB) ----------
+ks = scale === :paper  ? (100:100:600) :
+     scale === :medium ? (100:100:300) :
+                         (100:100:100)
+println("== spielmanIPM (FlowIPM22/Spielman_k*) ==")
 for k in ks
-    for i in sis
-        name = "sk$(k)i$(i)"
-        if ipmAvailable(name)
-            println("  $(name) already cached")
-            global ok += 1
-            continue
-        end
-        print("  $(name) ... ")
-        M = loadSSCached(name)
-        if M === nothing
-            println("not available upstream; stopping this k series")
-            break
-        end
+    name = "Spielman_k$(k)"
+    if ipmAvailable(name)
+        println("  $(name) already cached")
+        global ok += 1
+        continue
+    end
+    print("  $(name) ... ")
+    if ensureIPMCached(name)
         println("ok")
         global ok += 1
-        M = nothing
-        GC.gc()
+    else
+        println("not available upstream")
+        global failed += 1
     end
+    GC.gc()
 end
 
 # ---- SPE (manual) -----------------------------------------------------------
