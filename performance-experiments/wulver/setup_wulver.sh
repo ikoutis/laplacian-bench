@@ -82,3 +82,8 @@ echo "setup complete. next:"
 echo "  1. edit chol_vs_kcycle_array.sbatch: set --account to your PI account"
 echo "     (find it with: sacctmgr show associations user=\$USER format=account%30)"
 echo "  2. ./submit_wulver.sh --scale $SCALE"
+echo
+echo "  or, for the Spielman degree-1/2 elimination comparison alone"
+echo "  (ac, ac-s2m2, cmg-k, cmg-k-elim with per-matrix core%):"
+echo "    edit spielman_elim.sbatch (--account), then:"
+echo "    sbatch --export=ALL,SPL_SCALE=$SCALE spielman_elim.sbatch"
