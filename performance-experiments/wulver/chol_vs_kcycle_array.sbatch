@@ -43,6 +43,12 @@ if command -v module >/dev/null 2>&1; then
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
+# Keep the Julia depot off the small $HOME quota. Set UNCONDITIONALLY and AFTER
+# the module load: Wulver's EasyBuild Julia module (and --export=ALL forwarding)
+# sets JULIA_DEPOT_PATH itself (to a value like ":"), so a ${JULIA_DEPOT_PATH:-...}
+# fallback would keep that and Julia would miss our packages. Override via CVK_DEPOT.
+export JULIA_DEPOT_PATH="${CVK_DEPOT:-/project/ikoutis/$USER/.julia}"
+
 # All four solvers are single-threaded; pin the BLAS/OpenMP pools so timings
 # are comparable and tasks stay inside their --cpus-per-task allocation.
 export JULIA_NUM_THREADS=1
@@ -64,6 +70,7 @@ if [[ -z "$TASK_ARGS" ]]; then
 fi
 
 echo "host:   $(hostname)"
+echo "depot:  ${JULIA_DEPOT_PATH:-<unset -> \$HOME/.julia>}"
 echo "task:   ${SLURM_ARRAY_TASK_ID}: chol_vs_kcycle.jl $TASK_ARGS"
 echo "julia:  $(command -v julia) ($(julia --version))"
 

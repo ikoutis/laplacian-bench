@@ -50,6 +50,13 @@ if command -v module >/dev/null 2>&1; then
 fi
 command -v julia >/dev/null 2>&1 || export PATH="$HOME/.juliaup/bin:$PATH"
 
+# Keep the depot off the small $HOME quota. Set UNCONDITIONALLY and AFTER the
+# module load — Wulver's Julia module clobbers JULIA_DEPOT_PATH (to a value like
+# ":"), so a ${JULIA_DEPOT_PATH:-...} fallback would keep the module's value and
+# miss the installed packages. Override the location via CVK_DEPOT.
+export JULIA_DEPOT_PATH="${CVK_DEPOT:-/project/ikoutis/$USER/.julia}"
+echo "using JULIA_DEPOT_PATH=$JULIA_DEPOT_PATH"
+
 # Single-threaded, matching the other Wulver jobs, so solver timings are
 # comparable across columns and across runs.
 export JULIA_NUM_THREADS=1

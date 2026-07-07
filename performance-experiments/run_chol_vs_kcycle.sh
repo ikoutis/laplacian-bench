@@ -64,8 +64,9 @@ COMMON="--scale $SCALE --reps $REPS --seed $SEED"
 FIXED_FAMILIES=(uniform_grid aniso wgrid checkered sachdeva_star suitesparse spe chimeraIPM spielmanIPM)
 # Chimera families run once per size (one task per family x size).
 CHIMERA_FAMILIES=(uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera)
-# At paper scale these need the big-memory tier (nnz~2e8 grids, spe16m, 1e7 chimeras).
-BIG_FIXED="aniso wgrid checkered uniform_grid spe"
+# At paper scale these need the big-memory tier (nnz~2e8 grids, spe16m, 1e7
+# chimeras, and the FlowIPM22 Spielman graphs — k500/k600 are 126M/217M nnz).
+BIG_FIXED="aniso wgrid checkered uniform_grid spe spielmanIPM"
 
 SMALL_TASKS=()
 LARGE_TASKS=()

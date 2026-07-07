@@ -47,6 +47,14 @@ if ! command -v julia >/dev/null 2>&1 && command -v module >/dev/null 2>&1; then
     # riskier for older packages like Laplacians. Fall back if 1.11.9 is absent.
     module load Julia/1.11.9 2>/dev/null || module load Julia 2>/dev/null || module load julia 2>/dev/null || true
 fi
+
+# Keep the Julia depot off the small $HOME quota. Set UNCONDITIONALLY and AFTER
+# the module load: Wulver's EasyBuild Julia module sets JULIA_DEPOT_PATH itself
+# (to a value like ":"), so a ${JULIA_DEPOT_PATH:-...} fallback would keep the
+# module's value and miss our packages. Override the location via CVK_DEPOT.
+export JULIA_DEPOT_PATH="${CVK_DEPOT:-/project/ikoutis/$USER/.julia}"
+echo "using JULIA_DEPOT_PATH=$JULIA_DEPOT_PATH"
+
 if ! command -v julia >/dev/null 2>&1 && [[ -x "$HOME/.juliaup/bin/julia" ]]; then
     export PATH="$HOME/.juliaup/bin:$PATH"
 fi
