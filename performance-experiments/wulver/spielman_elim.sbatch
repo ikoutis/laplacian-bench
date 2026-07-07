@@ -24,11 +24,12 @@
 #   SPL_SEED     base seed                                [1]
 #   SPL_EXTRA    extra raw args passed through verbatim
 #
-# EDIT BEFORE FIRST USE: set --account to your PI account
-#   (find it with: sacctmgr show associations user=$USER format=account%30)
+# --account is set to ikoutis below. If Slurm rejects it, list your accounts
+# with  sacctmgr show associations user=$USER format=account%30  and override
+# at submit time, e.g.  sbatch --account=<acct> ... spielman_elim.sbatch
 #=============================================================
 #SBATCH --job-name=spielman_elim
-#SBATCH --account=PI_UCID_HERE
+#SBATCH --account=ikoutis
 #SBATCH --partition=general
 #SBATCH --qos=standard
 #SBATCH --nodes=1
