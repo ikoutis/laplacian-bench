@@ -35,11 +35,20 @@ cmg_cycle_name(cycle::Symbol) = cycle === :kcycle ? "cmg-k" :
                                 cycle === :vcycle ? "cmg-v" :
                                 error("unknown CMG cycle $(repr(cycle))")
 
+# "-elim" columns first exactly factor out degree-1/2 nodes (partial Cholesky)
+# and run the chosen cycle on the surviving core; see cmg_preconditioner_lap's
+# `eliminate` keyword. Especially effective on near-tree graphs (e.g. the
+# Spielman IPM family) where the core is tiny.
+cmg_elim_name(cycle::Symbol) = cmg_cycle_name(cycle) * "-elim"
+
 # Shared solve-closure constructor: `sys` is the SDD system CMG works on
-# (lap(a) for the Laplacian path, M itself for the SDDM path).
-function cmg_build(sys, cycle, theta, inner_tol, tol, maxits)
+# (lap(a) for the Laplacian path, M itself for the SDDM path). With
+# `eliminate = true`, `cmg_preconditioner_lap` returns an EliminatedHierarchy
+# and `cmg_solve` dispatches on it — `b` is still passed at its original size.
+function cmg_build(sys, cycle, theta, inner_tol, tol, maxits; eliminate = false)
     theta, inner_tol = Float64(theta), Float64(inner_tol)
-    (_, H) = cmg_preconditioner_lap(sys; cycle = cycle, theta = theta, inner_tol = inner_tol)
+    (_, H) = cmg_preconditioner_lap(sys; cycle = cycle, theta = theta,
+                                    inner_tol = inner_tol, eliminate = eliminate)
     return function (b; pcgIts = Int[0], tol = tol, maxits = maxits, verbose = false, args...)
         x, stats = cmg_solve(H, b; tol = Float64(tol), maxit = Int64(maxits),
                              cycle = cycle, theta = theta, inner_tol = inner_tol)
@@ -47,7 +56,7 @@ function cmg_build(sys, cycle, theta, inner_tol, tol, maxits)
             pcgIts[1] = stats.iterations
         end
         if verbose || !stats.converged
-            println("CMG $(cycle): its=$(stats.iterations) relres=$(stats.relres) converged=$(stats.converged)")
+            println("CMG $(cycle)$(eliminate ? "-elim" : ""): its=$(stats.iterations) relres=$(stats.relres) converged=$(stats.converged)")
         end
         return x
     end
@@ -60,9 +69,9 @@ Solver factory for the Laplacian path: receives an ADJACENCY matrix `a`
 (the `testLap`/`coreTestLap` convention), builds the CMG hierarchy on
 `lap(a)`, and solves with `cmg_solve`.
 """
-function make_cmg_lap(cycle::Symbol; theta = 0.75, inner_tol = 0.25)
+function make_cmg_lap(cycle::Symbol; theta = 0.75, inner_tol = 0.25, eliminate = false)
     return function (a; tol = 1e-8, maxits = 1000, verbose = false, args...)
-        cmg_build(lap(a), cycle, theta, inner_tol, tol, maxits)
+        cmg_build(lap(a), cycle, theta, inner_tol, tol, maxits; eliminate = eliminate)
     end
 end
 
@@ -77,9 +86,9 @@ Tutorial.md), so CMG accepts every benchmark input; validateInput! only
 rejects an asymmetric matrix or a positive off-diagonal, and the harness
 try/catch would record such a case as an (Inf,...) row.
 """
-function make_cmg_sddm(cycle::Symbol; theta = 0.75, inner_tol = 0.25)
+function make_cmg_sddm(cycle::Symbol; theta = 0.75, inner_tol = 0.25, eliminate = false)
     return function (M; tol = 1e-8, maxits = 1000, verbose = false, args...)
-        cmg_build(M, cycle, theta, inner_tol, tol, maxits)
+        cmg_build(M, cycle, theta, inner_tol, tol, maxits; eliminate = eliminate)
     end
 end
 
@@ -109,11 +118,14 @@ end
 
 Build matched Laplacian/SDDM SolverTest arrays: the approxchol variants first
 (the first solver's solution is the harness's reference `x`), then the CMG
-columns. `solvers`, if given, is a list of column names to keep, e.g.
-["ac", "cmg-k"].
+columns, then the degree-1/2-elimination CMG columns (`cmg-k-elim`,
+`cmg-v-elim`). `solvers`, if given, is a list of column names to keep, e.g.
+["ac", "cmg-k", "cmg-k-elim"]. `elim_cycles` selects which cycles get an
+elimination column (default: same as `cycles`; pass `[]` to omit them).
 """
 function cholVsKcycleTests(; ac_pairs = [(0, 0), (2, 2)],
                              cycles = [:kcycle, :vcycle],
+                             elim_cycles = [:kcycle, :vcycle],
                              theta = 0.75, inner_tol = 0.25,
                              solvers = nothing)
     tests_lap = SolverTest[]
@@ -128,6 +140,12 @@ function cholVsKcycleTests(; ac_pairs = [(0, 0), (2, 2)],
                                     cmg_cycle_name(cyc)))
         push!(tests_sddm, SolverTest(make_cmg_sddm(cyc; theta = theta, inner_tol = inner_tol),
                                      cmg_cycle_name(cyc)))
+    end
+    for cyc in elim_cycles
+        push!(tests_lap, SolverTest(make_cmg_lap(cyc; theta = theta, inner_tol = inner_tol,
+                                                 eliminate = true), cmg_elim_name(cyc)))
+        push!(tests_sddm, SolverTest(make_cmg_sddm(cyc; theta = theta, inner_tol = inner_tol,
+                                                   eliminate = true), cmg_elim_name(cyc)))
     end
 
     if solvers !== nothing
