@@ -122,10 +122,21 @@ function loadSSCached(fullname; download = ALLOW_DOWNLOAD[])
 end
 
 #=
-IPM matrices (chimeraIPM / spielmanIPM): prefer the .mm files the original
-scripts read, then a locally cached .mat (as downloadIPM.jl fetches them),
-then a live SuiteSparse download.
+IPM matrices (chimeraIPM / spielmanIPM) are hosted in the SuiteSparse FlowIPM22
+group. Prefer the .mm files the original scripts read, then a locally cached
+.mat, then a live SuiteSparse download. Local files are cached/looked up under
+the bare name (loadSSCached/ensureSSCached key the cache on the basename), so
+only the download URL carries the FlowIPM22/ group prefix.
 =#
+ipmSSName(name) = "FlowIPM22/" * name
+
+# FlowIPM22 stores each graph as "Undirected Weighted Graph" (adjacency, zero
+# diagonal); older IPM files were Laplacians (positive diagonal). Return the
+# adjacency for either: a Laplacian goes through adj(), an adjacency is used
+# as-is. This keeps the :lap path (which rebuilds lap(adjacency)) correct and
+# avoids handing CMG a positive-off-diagonal matrix.
+ipmAdjacency(M) = all(iszero, diag(M)) ? M : adj(M)[1]
+
 function loadIPM(name; download = ALLOW_DOWNLOAD[])
     M = loadMMCached(name)
     M === nothing || return M
@@ -137,7 +148,7 @@ function loadIPM(name; download = ALLOW_DOWNLOAD[])
             @warn "could not read $(path)" exception = e
         end
     end
-    return loadSSCached(name; download = download)
+    return loadSSCached(ipmSSName(name); download = download)
 end
 
 ipmAvailable(name) = isfile(joinpath(MATRIX_DIR, name * ".mm")) ||
@@ -148,7 +159,7 @@ ipmAvailable(name) = isfile(joinpath(MATRIX_DIR, name * ".mm")) ||
 # — like the *_ac.jl scripts, the sweep stops at the first name that isn't
 # obtainable. Downloads eagerly so the run-time loader reads from cache.
 ensureIPMCached(name; download = ALLOW_DOWNLOAD[]) =
-    ipmAvailable(name) || (ensureSSCached(name; download = download) !== nothing)
+    ipmAvailable(name) || (ensureSSCached(ipmSSName(name); download = download) !== nothing)
 
 "suitesparse-selected.jld2 holds the curated SuiteSparse matrix name list."
 function suitesparseNames()
@@ -268,57 +279,49 @@ function speInstances(scale; n = nothing, limit = nothing)
     return applyLimit(insts, limit)
 end
 
-# chimeraIPM: SuiteSparse-hosted Laplacians named uc.i<i>.eps<eps>.<cnt>.
-# The original script iterates cnt until the first missing file; we enumerate
-# availability the same way (checking .mm and cached .mat).
+# chimeraIPM: SuiteSparse FlowIPM22 IPM chimeras, named uni_chimera_i<i>
+# (each n = 1e5). The group holds i = 1..5; enumerate and skip any that are
+# not obtainable (offline and not cached, or genuinely absent).
 function chimeraIPMInstances(scale; n = nothing, limit = nothing)
-    is, js, cnts = scale === :paper  ? (1:5, 1:6, 1:6) :
-                   scale === :medium ? (1:2, 1:2, 1:3) :
-                                       (1:1, 1:1, 1:1)
+    imax = scale === :paper ? 5 : scale === :medium ? 3 : 1
     insts = BenchInstance[]
-    for i in is, j in js
-        curTargetEps = 1 / 10^j
-        for cnt in cnts
-            name = "uc.i$(i).eps$(curTargetEps).$(cnt)"
-            if !ensureIPMCached(name)
-                break   # matches chimeraIPM_ac.jl: stop at the first missing count
-            end
-            push!(insts, BenchInstance("chimeraIPM $(name)",
-                (baseseed, rep) -> begin
-                    L = loadIPM(name)
-                    L === nothing && return nothing
-                    a, _ = adj(L)
-                    # the original reused a stale testName here; label properly
-                    (:lap, a, name)
-                end))
-        end
+    for i in 1:imax
+        name = "uni_chimera_i$(i)"
+        ensureIPMCached(name) || continue
+        push!(insts, BenchInstance("chimeraIPM $(name)",
+            (baseseed, rep) -> begin
+                L = loadIPM(name)
+                L === nothing && return nothing
+                (:lap, ipmAdjacency(L), name)
+            end))
     end
     if isempty(insts)
-        @warn "chimeraIPM: no uc.i*.eps*.* files under matrix-files/ — run performance-experiments/download_data.jl first"
+        @warn "chimeraIPM: no uni_chimera_i*.mm/.mat under matrix-files/ — run performance-experiments/download_data.jl first"
     end
     return applyLimit(insts, limit)
 end
 
+# spielmanIPM: SuiteSparse FlowIPM22 Spielman graphs, named Spielman_k<k>,
+# k = 100..600 (one matrix per k). NOTE k500 (126M nnz) and k600 (217M nnz)
+# are large-memory instances — this family runs in the big-memory tier (see
+# BIG_FIXED in run_chol_vs_kcycle.sh); cap with --limit to skip the biggest.
 function spielmanIPMInstances(scale; n = nothing, limit = nothing)
-    ks, is = scale === :paper  ? (100:100:600, 1:11) :
-             scale === :medium ? (100:100:200, 1:3) :
-                                 (100:100:100, 1:1)
+    ks = scale === :paper  ? (100:100:600) :
+         scale === :medium ? (100:100:300) :
+                             (100:100:100)
     insts = BenchInstance[]
-    for k in ks, i in is
-        name = "sk$(k)i$(i)"
-        if !ensureIPMCached(name)
-            break   # matches spielmanIPM_ac.jl: stop at the first missing index
-        end
+    for k in ks
+        name = "Spielman_k$(k)"
+        ensureIPMCached(name) || continue
         push!(insts, BenchInstance("spielmanIPM $(name)",
             (baseseed, rep) -> begin
                 L = loadIPM(name)
                 L === nothing && return nothing
-                a, _ = adj(L)
-                (:lap, a, name)
+                (:lap, ipmAdjacency(L), name)
             end))
     end
     if isempty(insts)
-        @warn "spielmanIPM: no sk*i*.mm/.mat files under matrix-files/ — run performance-experiments/download_data.jl first"
+        @warn "spielmanIPM: no Spielman_k*.mm/.mat under matrix-files/ — run performance-experiments/download_data.jl first"
     end
     return applyLimit(insts, limit)
 end
