@@ -2,8 +2,9 @@
 Approximate-Cholesky vs CMG K-cycle benchmark runner.
 
 Compares the Laplacians.jl approxchol variants ("ac", "ac-s2m2") against
-CombinatorialMultigrid's K-cycle ("cmg-k") and V-cycle/PCG ("cmg-v") on any
-of the benchmark problem families, with reproducible seeding and repetitions.
+CombinatorialMultigrid's K-cycle ("cmg-k") and V-cycle/PCG ("cmg-v"), plus the
+degree-1/2-elimination CMG columns ("cmg-k-elim", "cmg-v-elim"), on any of the
+benchmark problem families, with reproducible seeding and repetitions.
 
     julia --project=.. chol_vs_kcycle.jl <family|all> [options]
 
@@ -14,7 +15,7 @@ Options (defaults in brackets):
     --seed S                     base seed (>= 0)               [1]
     --tol T                      relative residual tolerance    [family default]
     --maxits K                   max (outer) iterations         [1000]
-    --solvers a,b,...            subset of ac,ac-s2m2,cmg-k,cmg-v [all]
+    --solvers a,b,...            subset of ac,ac-s2m2,cmg-k,cmg-v,cmg-k-elim,cmg-v-elim [all]
     --limit N                    cap number of instances per family
     --max-hours H                stop before starting work past H hours
     --out DIR                    output directory [../performance-analyses/chol-vs-kcycle]
@@ -52,7 +53,7 @@ include(joinpath(@__DIR__, "..", "julia-files", "benchFamilies.jl"))
 const USAGE = """
 usage: julia --project=.. chol_vs_kcycle.jl <family|all>
            [--scale smoke|medium|paper] [--n 1e6[,1e7]] [--reps R] [--seed S]
-           [--tol T] [--maxits K] [--solvers ac,ac-s2m2,cmg-k,cmg-v]
+           [--tol T] [--maxits K] [--solvers ac,ac-s2m2,cmg-k,cmg-v,cmg-k-elim,cmg-v-elim]
            [--limit N] [--max-hours H] [--out DIR] [--no-warmup] [--offline]
 families: $(join(FAMILY_ORDER, " ")), or: all
 --offline (or CVK_OFFLINE=1): never fetch matrices at run time; use only
