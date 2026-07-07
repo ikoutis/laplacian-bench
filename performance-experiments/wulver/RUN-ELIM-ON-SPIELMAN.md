@@ -1,135 +1,102 @@
-# Wulver runbook: test CMG degree-1/2 elimination on the Spielman graphs
+# Wulver runbook v2: measure the fast elimination on the Spielman graphs
 
 ## Context
 
-Everything is merged: laplacian-bench `main` (`1b61792` and later — seeing this
-file after a pull confirms you're current) has the elimination columns
-(`cmg-k-elim`/`cmg-v-elim`), `spielman_elim_demo.jl`, the FlowIPM22 Spielman
-loaders (`Spielman_k100..k600`), the Wulver depot fixes, and in-repo CMG
-support; CombinatorialMultigrid `main` (`98fe870`) has the `eliminate` branch. The goal now is purely operational: on Wulver, get onto a compute node
-and run the comparison (`ac`, `ac-s2m2`, `cmg-k`, `cmg-k-elim` + per-matrix
-`core%`) on the real Spielman graphs, without tripping the known landmines:
+CMG.jl `main` (`f0f5e40`) has the array-based `eliminate_deg12` (PR #3;
+targets the 10.8 s k300 elimination build) and honest-failure breakdown
+semantics (the guarded-refinement salvage was reverted in PR #5).
+laplacian-bench `main` (`80c4caf` and later — seeing this v2 text after a pull
+confirms you're current) has the anonymous-environment Project.toml fix, so
+setup steps exit 0. Goal: re-run the Spielman comparison on a compute node and
+compare `cmg-k-elim`'s `build_s` against the previous run
+(0.300 / 2.490 / 10.772 s at k100/k200/k300) and against `ac`
+(0.208 / 0.845 / 3.031 s).
 
-- **login node**: has internet, but OOMs on Julia precompile → git + downloads only.
-- **compute node**: no internet → all Julia (setup, precompile, run) happens here, offline.
-- **depot**: Wulver's Julia module clobbers `JULIA_DEPOT_PATH` (sets it to `:`), so it
-  must be exported **after** `module load`, unconditionally, to
-  `/project/ikoutis/ikoutis/.julia` (the depot holding all previously installed deps).
-- Paths: repo = `/project/ikoutis/github/laplacian-bench`.
+Landmines, unchanged: login = git only (Julia OOMs on precompile), compute =
+offline, depot exported **after** `module load` (the Julia module clobbers
+`JULIA_DEPOT_PATH`). New simplification: the bench env `develop`s the in-repo
+CMG checkout, so after a `git pull` of that checkout **no Pkg operation is
+needed** — the first `using` on the compute node recompiles the changed source.
 
-This is an exact command sequence with checks between steps — run the phases in
-order and don't proceed past a failed check.
+Run the phases in order; don't proceed past a failed check.
 
-## Phase A — login node (login02): git only, no Julia
+## Phase A — login node (git only, no Julia)
 
 ```bash
 cd /project/ikoutis/github/laplacian-bench
-
-# A1. clean tree state (local .jld2 results block checkout otherwise)
-git status --short                 # see what's dirty
-git stash push -m "local results before elim run"   # only if dirty
+git status --short                                        # if dirty (result files):
+git stash push -m "local results before fast-elim run"    #   only if dirty
 git checkout main
 git pull --ff-only origin main
-ls performance-experiments/wulver/RUN-ELIM-ON-SPIELMAN.md   # EXPECT: exists (you're current)
 
-# A2. update the in-repo CMG clone to main (pure git; tolerant of hiccups)
-performance-experiments/wulver/fetch_cmg.sh
-ls CombinatorialMultigrid.jl/src/elimination.jl    # MUST exist — abort if not
-
-# A3. confirm the Spielman matrices are cached (prefetched earlier)
-ls -lh matrix-files/Spielman_k*.mat matrix-files/Spielman_k*.mm 2>/dev/null
+performance-experiments/wulver/fetch_cmg.sh               # in-repo CMG -> main
+git -C CombinatorialMultigrid.jl log --oneline -1         # EXPECT: f0f5e40 Merge pull request #5 ...
 ```
 
-**Check A3:** for `--scale medium` you need `Spielman_k100/k200/k300`. If any are
-missing, fetch them on login with plain HTTP (no Julia):
-`wget -O matrix-files/Spielman_k<k>.mat http://sparse-files.engr.tamu.edu/mat/FlowIPM22/Spielman_k<k>.mat`
-
-## Phase B — grab an interactive compute node
+## Phase B — grab a compute node
 
 ```bash
 srun --account=ikoutis --partition=general --qos=standard \
      --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=64G --time=04:00:00 --pty bash
 ```
 
-(64G covers k300 comfortably; k500/k600 are 126M/217M nnz and are NOT in the
-medium sweep — they need a big-memory job, Phase D.)
+(64G covers the medium sweep k100–k300; k500/k600 are 126M/217M nnz — Phase D.)
 
-## Phase C — on the compute node: environment, verify, run
+## Phase C — on the compute node
 
 ```bash
 cd /project/ikoutis/github/laplacian-bench
-
-# C1. Julia + depot — ORDER MATTERS: depot export AFTER module load
 module purge; module load wulver
 command -v julia >/dev/null || module load Julia/1.11.9
-export JULIA_DEPOT_PATH=/project/ikoutis/ikoutis/.julia
+export JULIA_DEPOT_PATH=/project/ikoutis/ikoutis/.julia   # AFTER module load
 export JULIA_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
-echo "$JULIA_DEPOT_PATH"; julia --version     # depot must NOT be ":" or empty
+echo "$JULIA_DEPOT_PATH"                                  # must not be ":" or empty
 
-# C2. point the env at the in-repo CMG and precompile — fully offline
-#     (setup.jl auto-develops ./CombinatorialMultigrid.jl; all deps are already
-#      in the depot from earlier runs, so no network is needed or attempted)
-JULIA_PKG_OFFLINE=true julia --project=. setup.jl
-
-# C3. verify the NEW CMG is what's loaded — do not benchmark before this passes
+# gate: first `using` recompiles CMG from the updated in-repo checkout;
+# compact_adjacency! exists only in the new fast elimination
 julia --project=. -e '
   using CombinatorialMultigrid
-  @show pathof(CombinatorialMultigrid)                       # must be under /project/ikoutis/github/laplacian-bench/CombinatorialMultigrid.jl/
-  @show isdefined(CombinatorialMultigrid, :EliminatedHierarchy)   # must be true'
+  @show pathof(CombinatorialMultigrid)
+  @show isdefined(CombinatorialMultigrid, :compact_adjacency!)'
+# pathof must be under .../laplacian-bench/CombinatorialMultigrid.jl/
+# isdefined must be true — do not benchmark before both hold
 
-# C4. run the comparison (medium = Spielman_k100,k200,k300), save output
+# measurement run (Spielman_k100/k200/k300)
 julia --project=. performance-experiments/spielman_elim_demo.jl --scale medium --offline \
-  | tee performance-experiments/wulver/spielman_medium.out
+  | tee performance-experiments/wulver/spielman_medium_fastelim.out
 ```
 
 Failure handling:
-- C2 errors mentioning a package "not installed" → depot is wrong; recheck C1
-  (the module clobbered it, or the export ran before `module load`).
-- C2 hangs on "waiting for lock" or reprints `✗ Pkg` → stale cache from the
-  earlier killed login precompile: `rm -rf $JULIA_DEPOT_PATH/compiled/v1.11/Pkg`
-  and rerun C2.
-- C3 `pathof` pointing into `$JULIA_DEPOT_PATH/packages/...` → the env still has
-  the URL-pinned CMG; rerun C2 and confirm it logs "Using in-repo
-  CombinatorialMultigrid checkout".
-- Demo prints "No Spielman matrices available" → cache check A3 failed for the
-  bare names; fetch on login as in A3, rerun (it is `--offline`, so it never
-  downloads on compute).
+- `pathof` points into `$JULIA_DEPOT_PATH/packages/...` → the Manifest lost the
+  develop entry; run `JULIA_PKG_OFFLINE=true julia --project=. setup.jl`
+  (auto-develops the in-repo checkout, exits 0) and re-check.
+- `isdefined(... :compact_adjacency!)` is false → the in-repo checkout wasn't
+  updated; redo Phase A's `fetch_cmg.sh` on login.
+- "Package ... not installed" → depot wrong; redo the module-load-then-export
+  order above.
+- Precompile hang / `✗ Pkg` → `rm -rf $JULIA_DEPOT_PATH/compiled/v1.11/Pkg`,
+  retry.
 
-## Phase D — optional: full paper sweep via Slurm batch (k100..k600)
-
-Only after Phase C succeeds. `Spielman_k500/k600` are the large ones:
+## Phase D — optional paper scale (k100..k600), after C succeeds
 
 ```bash
-# from login or compute shell, in performance-experiments/wulver/
-mkdir -p logs
+cd performance-experiments/wulver && mkdir -p logs
 sbatch --export=ALL,SPL_SCALE=paper,SPL_MAXITS=2000 --mem=200G --time=48:00:00 spielman_elim.sbatch
-# or skip the giants first:  --export=ALL,SPL_SCALE=paper,SPL_LIMIT=4
-tail -f logs/spielman_elim_<jobid>.out
 ```
 
-The sbatch already handles module/depot/threads itself (account=ikoutis,
-depot default `/project/ikoutis/$USER/.julia`, `--offline` hard-coded).
+## What to look for
 
-## Verification / what success looks like
-
-- C3 prints the in-repo path and `true`.
-- `spielman_medium.out` shows, per matrix, a `core= ... (x.xx% of n)` header —
-  the near-tree measure — and a 4-row table (`ac`, `ac-s2m2`, `cmg-k`,
-  `cmg-k-elim`) with `relres ≤ 1e-8` for all rows.
-- The story to check: `cmg-k` on these graphs historically needs ~35–64 outer
-  iterations; `cmg-k-elim` should cut iterations and `tot_s` sharply if the
-  Spielman graphs are as tree-like as expected (small `core%`).
-- Afterwards, restore any stashed local results if wanted: `git stash list`,
-  `git stash pop`.
-
-## Explicitly avoided pitfalls (why each step is shaped this way)
-
-| Pitfall | Guard |
-|---|---|
-| Login OOM on precompile | No Julia on login at all; C2 runs on compute |
-| Compute has no internet | `JULIA_PKG_OFFLINE=true`; demo run with `--offline`; matrices verified cached in A3 |
-| Module clobbers depot (`:`) | Depot exported after `module load`, checked by echo |
-| Old URL-pinned CMG silently used | C3 `pathof` + `EliminatedHierarchy` gate before any benchmarking |
-| Dirty tree blocks pull | A1 stash step |
-| Stale `sk<k>i<i>` names | merged FlowIPM22 loaders; A3 checks the new `Spielman_k*` names |
-| k500/k600 memory blowup | medium scale for interactive; 200G batch job for paper |
+- `cmg-k-elim` `build_s` vs the previous 0.300 / 2.490 / 10.772 s — target ≥5×
+  lower (toward or below ac's 0.208 / 0.845 / 3.031 s). `solve_s` should stay
+  ~0.007 / 0.055 / 0.19 s and `relres` at 1e-10…1e-14.
+- `core` must still be exactly 100 / 200 / 300 (algorithm unchanged, only its
+  bookkeeping).
+- Expected and fine: k300 `cmg-k-elim` prints `converged=false` at relres
+  ~1.2e-8 (honest breakdown semantics, by choice); the table's `relres` column
+  is the ground truth.
+- Comparison caveat: a different compute node than the last run (n0056) can
+  shift timings by tens of percent; the build-time *ratio* to `ac` within the
+  same run is the robust number.
+- Decision afterwards: if `cmg-k-elim` build ≈ ac build, the remaining
+  optimization ideas (leaf sweep first, pooled records, chain-walking) are
+  optional polish; otherwise pick them up next.
