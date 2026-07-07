@@ -1,0 +1,4 @@
+# In-repo checkout of CombinatorialMultigrid.jl, developed by setup.jl via its
+# local `develop` path (clone/update it with performance-experiments/wulver/
+# fetch_cmg.sh). It is a separate git repository and is never tracked here.
+/CombinatorialMultigrid.jl/

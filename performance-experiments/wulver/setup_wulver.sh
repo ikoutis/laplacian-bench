@@ -57,14 +57,26 @@ if ! command -v julia >/dev/null 2>&1; then
 fi
 julia --version
 
-# 3. Julia project.
+# 2b. Fetch CombinatorialMultigrid.jl into the repo (pure git — safe here on the
+#     login node). setup.jl then develops this local checkout instead of doing a
+#     run-time GitHub fetch, so compute nodes need no internet. Override the
+#     branch/tag with CMG_FETCH_REV (default main).
+"$SCRIPT_DIR/fetch_cmg.sh" --rev "${CMG_FETCH_REV:-main}"
+
+# 3. Julia project. Precompilation is deferred (SETUP_SKIP_PRECOMPILE=1): it
+#    happens on first `using` on a compute node, so this step stays light — some
+#    clusters (e.g. Wulver) restrict heavy compute on the login node. If even the
+#    instantiate below fails here, rerun it on a compute node (see the note at the
+#    end); the in-repo CMG checkout makes it fully offline.
 cd "$ROOT"
+export SETUP_SKIP_PRECOMPILE=1
+SETUP_JULIA_FAILED=0
 if [[ -f Manifest.toml ]]; then
-    echo "Manifest.toml present — instantiating the pinned environment"
-    julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+    echo "Manifest.toml present — instantiating (precompile deferred to compute)"
+    julia --project=. -e 'using Pkg; Pkg.instantiate()' || SETUP_JULIA_FAILED=1
 else
-    echo "no Manifest.toml — running setup.jl (adds CombinatorialMultigrid from GitHub)"
-    julia --project=. setup.jl
+    echo "no Manifest.toml — running setup.jl (develops the in-repo CMG checkout)"
+    julia --project=. setup.jl || SETUP_JULIA_FAILED=1
     echo "consider committing the generated Manifest.toml to pin this environment"
 fi
 
@@ -78,6 +90,19 @@ julia --project="$ROOT" download_data.jl --scale "$SCALE" || {
 mkdir -p "$SCRIPT_DIR/logs"
 
 echo
+if [[ "$SETUP_JULIA_FAILED" == "1" ]]; then
+    cat <<NOTE
+NOTE: the Julia instantiate step did not finish on this (login) node. On clusters
+that restrict compute on the login node, run it once on a COMPUTE node — the
+in-repo CombinatorialMultigrid.jl checkout makes it fully offline:
+    srun --account=<acct> --partition=general --qos=standard \\
+         --cpus-per-task=4 --mem=32G --time=01:00:00 --pty bash
+    cd "$ROOT"
+    export JULIA_DEPOT_PATH=<your depot, e.g. /project/<PI>/\$USER/.julia>
+    JULIA_PKG_OFFLINE=true julia --project=. setup.jl
+
+NOTE
+fi
 echo "setup complete. next:"
 echo "  1. edit chol_vs_kcycle_array.sbatch: set --account to your PI account"
 echo "     (find it with: sacctmgr show associations user=\$USER format=account%30)"
