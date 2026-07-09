@@ -10,10 +10,10 @@ Coverage report — expected vs produced instances per family
   spe                    0 / manual  skipped (SPE needs manual spe.zip)
   chimeraIPM           128 / (sweep)  present
   spielmanIPM           61 / (sweep)  present
-  uni_chimera           12 / 4    PARTIAL
-  uni_bndry_chimera     12 / 4    PARTIAL
-  wted_chimera          12 / 4    PARTIAL
-  wted_bndry_chimera    12 / 4    PARTIAL
+  uni_chimera            4 / 4    OK
+  uni_bndry_chimera      4 / 4    OK
+  wted_chimera           4 / 4    OK
+  wted_bndry_chimera     4 / 4    OK
 
 Per-solver failed instances (all reps Inf):
   ac           none
