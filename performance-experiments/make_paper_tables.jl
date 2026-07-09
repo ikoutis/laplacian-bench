@@ -21,8 +21,9 @@ ApproxChol solvers plus CMG-legacy and CMG-K-elim):
   * coverage.txt          — expected vs produced instance counts per family and
     per-solver failures, so "nothing was missed" is auditable.
 
-Aggregation: median across reps of finite build/solve/tot/its; max of finite
-err. Failed runs (Inf from the harness) are excluded from medians and counted.
+Aggregation: median across reps of finite build/solve/tot/its and err (matching
+the paper's printMedian). Failed runs (Inf from the harness) are excluded from
+the medians and counted separately.
 ===========================================================#
 
 using JLD2
@@ -83,7 +84,7 @@ function aggregate(files, solvers)
                               solve = medf(fin(dic["$(s)_solve"][idx])),
                               tot = medf(good),
                               its = medf(fin(dic["$(s)_its"][idx])),
-                              err = maxf(fin(dic["$(s)_err"][idx])),
+                              err = medf(fin(dic["$(s)_err"][idx])),
                               fail = length(tot) - length(good),
                               runs = length(idx),
                               ran = true)
