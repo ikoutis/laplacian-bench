@@ -104,11 +104,14 @@ cd performance-experiments
 Writes into `../performance-analyses/chol-vs-kcycle/`:
 
 - **`paper_comparison.csv`** — machine-readable, RFC-4180 quoted (some testNames
-  contain commas): one row per instance, per solver `build/solve/tot/its/err`
-  medians + failure count.
+  contain commas): one row per instance (all instances, unfiltered), the system
+  `kind` (lap/sddm), and per solver `build/solve/tot/its/err` medians + failure
+  count.
 - **`paper_comparison.md`** — one table per family, median total seconds with
   median iterations in parentheses, a per-family max-relres line, and a median
-  `cmg-k-elim` vs `ac` total-time speedup footer. Analogous to the paper's tables.
+  `cmg-k-elim` vs `ac` total-time speedup footer. SuiteSparse is split into a
+  Laplacian and an SDDM table with `ne > 1000`, mirroring the paper. Analogous
+  to the paper's tables.
 - **`coverage.txt`** — expected vs produced instance counts per family and
   per-solver failures, so **"nothing was missed" is auditable** (IPM full sweep
   present; SPE listed as intentionally skipped).
