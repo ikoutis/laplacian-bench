@@ -129,6 +129,12 @@ source performance-experiments/wulver/env_wulver.sh
 ./performance-experiments/run_paper_comparison.sh summarize
 ```
 
+`summarize` reads **only this run's files** — those matching
+`*.seed${SEED}.reps${REPS}.jld2` in the results directory — so stale results from
+earlier runs (older smoke/`reps1` dev runs, or sample `.jld2` that ship in the
+repo) can't inflate the coverage counts. To summarize a different set, pass files
+or a directory explicitly: `./run_paper_comparison.sh summarize <files-or-dir>`.
+
 Writes into `performance-analyses/chol-vs-kcycle/`:
 
 - **`paper_comparison.csv`** — machine-readable, RFC-4180 quoted (some testNames

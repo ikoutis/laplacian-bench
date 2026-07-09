@@ -58,9 +58,28 @@ case "$sub" in
             "$SCRIPT_DIR/run_chol_vs_kcycle.sh" --run "$@"
         ;;
     summarize)
-        echo "paper-comparison SUMMARIZE: solvers=$SOLVERS"
-        (cd "$SCRIPT_DIR" && "$JULIA_CMD" --project="$ROOT" make_paper_tables.jl \
-            --solvers "$SOLVERS" "$@")
+        # Summarize ONLY this run's result files, matched by the seed/reps
+        # signature, so stale files from other runs sharing the results
+        # directory (older smoke/reps1 dev runs, committed sample results) do not
+        # pollute the coverage report. Pass explicit files/dirs to override.
+        RESULTS_DIR="$ROOT/performance-analyses/chol-vs-kcycle"
+        echo "paper-comparison SUMMARIZE: solvers=$SOLVERS (seed=$SEED reps=$REPS)"
+        if [[ $# -gt 0 ]]; then
+            (cd "$SCRIPT_DIR" && "$JULIA_CMD" --project="$ROOT" make_paper_tables.jl \
+                --solvers "$SOLVERS" "$@")
+        else
+            shopt -s nullglob
+            FILES=( "$RESULTS_DIR"/*.seed${SEED}.reps${REPS}.jld2 )
+            shopt -u nullglob
+            if [[ ${#FILES[@]} -eq 0 ]]; then
+                echo "no result files matching *.seed${SEED}.reps${REPS}.jld2 in $RESULTS_DIR" >&2
+                echo "(check --reps/--seed, or pass files/dirs explicitly)" >&2
+                exit 1
+            fi
+            echo "summarizing ${#FILES[@]} file(s) matching *.seed${SEED}.reps${REPS}.jld2"
+            (cd "$SCRIPT_DIR" && "$JULIA_CMD" --project="$ROOT" make_paper_tables.jl \
+                --solvers "$SOLVERS" "${FILES[@]}")
+        fi
         ;;
     selftest)
         # Fast, data-free gate for the summarizer (laptop CI).
