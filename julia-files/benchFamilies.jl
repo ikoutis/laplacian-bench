@@ -318,17 +318,20 @@ ipmInst(fam, nm) = BenchInstance("$(fam) $(nm)",
         (:lap, ipmAdjacency(L), nm)
     end)
 
-# chimeraIPM. If the manual full sweep (ipmMat.zip: uc.i<i>.eps<eps>.<cnt>.mm)
-# is staged in matrix-files/, use the paper's full set (capped by scale on i);
-# otherwise fall back to the auto-downloadable FlowIPM22 subset uni_chimera_i<i>.
+# chimeraIPM. If the manual full sweep is staged (in matrix-files/ or its
+# ipmMat/ subdir), use the paper's full set (capped by scale on the chimera
+# index i); otherwise fall back to the auto-downloadable FlowIPM22 subset
+# uni_chimera_i<i>. The Dropbox ipmMat.zip names them
+# uni_chimera.n<n>.i<i>.eps<eps>.<cnt>.mm; the short uc.i<i>.eps<eps>.<cnt> form
+# is also accepted.
 function chimeraIPMInstances(scale; n = nothing, limit = nothing)
     imax = scale === :paper ? 5 : scale === :medium ? 3 : 1
-    full = localIPMNames(r"^uc\.i\d+\.")
+    full = localIPMNames(r"^(?:uni_chimera\.n\d+|uc)\.i\d+\.eps")
     if !isempty(full)
-        keep = filter(nm -> (m = match(r"^uc\.i(\d+)\.", nm);
+        keep = filter(nm -> (m = match(r"\.i(\d+)\.eps", nm);
                              m !== nothing && parse(Int, m.captures[1]) <= imax), full)
         insts = [ipmInst("chimeraIPM", nm) for nm in keep]
-        isempty(insts) && @warn "chimeraIPM: staged uc.i*.mm present but none with i <= $(imax)"
+        isempty(insts) && @warn "chimeraIPM: staged chimera-IPM .mm present but none with i <= $(imax)"
         return applyLimit(insts, limit)
     end
     insts = BenchInstance[]
@@ -343,24 +346,26 @@ function chimeraIPMInstances(scale; n = nothing, limit = nothing)
             end))
     end
     if isempty(insts)
-        @warn "chimeraIPM: no uc.i*.mm (manual ipmMat.zip) and no uni_chimera_i*.mm/.mat — run download_data.jl or stage ipmMat.zip"
+        @warn "chimeraIPM: no chimera-IPM .mm (manual ipmMat.zip: uni_chimera.n*.i*.eps*.mm) and no uni_chimera_i*.mm/.mat — run download_data.jl or stage ipmMat.zip"
     end
     return applyLimit(insts, limit)
 end
 
-# spielmanIPM. If the manual full sweep (ipmMat.zip: sk<k>i<i>.mm) is staged,
-# use the paper's full set (k = 100..600 by scale, i = 1..11); otherwise fall
-# back to the auto FlowIPM22 subset Spielman_k<k>. NOTE the largest instances
-# are big-memory (this family runs in the big-memory tier; see BIG_FIXED in
-# run_chol_vs_kcycle.sh); cap with --limit to skip the biggest.
+# spielmanIPM. If the manual full sweep is staged (in matrix-files/ or its
+# ipmMat/ subdir), use the paper's full set (k = 100..600 by scale, i = 1..11);
+# otherwise fall back to the auto FlowIPM22 subset Spielman_k<k>. The Dropbox
+# ipmMat.zip names them spielman.k<k>.low<lo>.up<up>.i<i>.mm; the short sk<k>i<i>
+# form is also accepted. NOTE the largest instances are big-memory (this family
+# runs in the big-memory tier; see BIG_FIXED in run_chol_vs_kcycle.sh); cap with
+# --limit to skip the biggest.
 function spielmanIPMInstances(scale; n = nothing, limit = nothing)
     kmax = scale === :paper ? 600 : scale === :medium ? 300 : 100
-    full = localIPMNames(r"^sk\d+i\d+$")
+    full = localIPMNames(r"^(?:spielman\.k\d+\..*\.i\d+|sk\d+i\d+)$")
     if !isempty(full)
-        keep = filter(nm -> (m = match(r"^sk(\d+)i\d+$", nm);
+        keep = filter(nm -> (m = match(r"^(?:spielman\.k|sk)(\d+)", nm);
                              m !== nothing && parse(Int, m.captures[1]) <= kmax), full)
         insts = [ipmInst("spielmanIPM", nm) for nm in keep]
-        isempty(insts) && @warn "spielmanIPM: staged sk*i*.mm present but none with k <= $(kmax)"
+        isempty(insts) && @warn "spielmanIPM: staged spielman-IPM .mm present but none with k <= $(kmax)"
         return applyLimit(insts, limit)
     end
     insts = BenchInstance[]
@@ -375,7 +380,7 @@ function spielmanIPMInstances(scale; n = nothing, limit = nothing)
             end))
     end
     if isempty(insts)
-        @warn "spielmanIPM: no sk*i*.mm (manual ipmMat.zip) and no Spielman_k*.mm/.mat — run download_data.jl or stage ipmMat.zip"
+        @warn "spielmanIPM: no spielman-IPM .mm (manual ipmMat.zip: spielman.k*.low*.up*.i*.mm) and no Spielman_k*.mm/.mat — run download_data.jl or stage ipmMat.zip"
     end
     return applyLimit(insts, limit)
 end

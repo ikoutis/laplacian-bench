@@ -34,20 +34,22 @@ FlowIPM22 IPM **subset**, but two sources are manual:
 1. **Full IPM sweep — REQUIRED for this comparison** (the paper's full set, not
    the FlowIPM22 subset). Download `ipmMat.zip`
    (<https://www.dropbox.com/s/qvobilehu9vzeqm/ipmMat.zip?dl=0>, Tutorial.md
-   §"IPM") and unzip **into `matrix-files/`** so you get
-   `uc.i<i>.eps<eps>.<cnt>.mm` (chimera-IPM) and `sk<k>i<i>.mm` (Spielman-IPM):
+   §"IPM") and unzip it. The archive contains Matrix Market `.mm` Laplacians
+   named `uni_chimera.n<n>.i<i>.eps<eps>.<cnt>.mm` (chimera-IPM) and
+   `spielman.k<k>.low<lo>.up<up>.i<i>.mm` (Spielman-IPM):
 
    ```bash
    cd /path/to/laplacian-bench/matrix-files
-   unzip /path/to/ipmMat.zip           # -> creates an ipmMat/ subdirectory
-   mv ipmMat/*.mm . && rmdir ipmMat    # flatten (optional; loaders also read ipmMat/)
-   ls uc.i1.* sk100i1.mm                # sanity check
+   unzip /path/to/ipmMat.zip                  # -> creates an ipmMat/ subdirectory
+   mv ipmMat/*.mm . && rmdir ipmMat           # flatten (optional; loaders also read ipmMat/)
+   ls uni_chimera.*.mm spielman.*.mm | head   # sanity check
    ```
 
    Note the zip extracts into an **`ipmMat/` subdirectory**. The loaders scan
-   both `matrix-files/` and `matrix-files/ipmMat/`, so flattening is optional —
-   but flattening also lets the paper's own scripts (`chimeraIPM_all.jl` etc.,
-   which expect the files flat) find them.
+   both `matrix-files/` and `matrix-files/ipmMat/`, so flattening is optional.
+   (The paper's own legacy scripts expect a different short naming, `uc.i*.mm` /
+   `sk*i*.mm`, from a separate SuiteSparse route — not needed here; the
+   paper-comparison loaders read the Dropbox names directly.)
 
    When these files are present, `chimeraIPMInstances` / `spielmanIPMInstances`
    (in `julia-files/benchFamilies.jl`) automatically prefer the full sweep over
