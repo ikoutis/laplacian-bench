@@ -39,9 +39,15 @@ FlowIPM22 IPM **subset**, but two sources are manual:
 
    ```bash
    cd /path/to/laplacian-bench/matrix-files
-   unzip /path/to/ipmMat.zip           # -> uc.i*.eps*.*.mm and sk*i*.mm here
+   unzip /path/to/ipmMat.zip           # -> creates an ipmMat/ subdirectory
+   mv ipmMat/*.mm . && rmdir ipmMat    # flatten (optional; loaders also read ipmMat/)
    ls uc.i1.* sk100i1.mm                # sanity check
    ```
+
+   Note the zip extracts into an **`ipmMat/` subdirectory**. The loaders scan
+   both `matrix-files/` and `matrix-files/ipmMat/`, so flattening is optional —
+   but flattening also lets the paper's own scripts (`chimeraIPM_all.jl` etc.,
+   which expect the files flat) find them.
 
    When these files are present, `chimeraIPMInstances` / `spielmanIPMInstances`
    (in `julia-files/benchFamilies.jl`) automatically prefer the full sweep over
