@@ -9,12 +9,18 @@ loaders only fall back to downloading when a file is missing.
 
 Fetches (idempotent — cached files are kept and skipped):
   * the curated SuiteSparse selection (matrix-files/suitesparse-selected.jld2),
-  * the chimeraIPM matrices  uc.i<i>.eps<eps>.<cnt>  (SuiteSparse),
-  * the spielmanIPM matrices sk<k>i<i>               (SuiteSparse),
-and reports which SPE .mm files are present. The SPE matrices are not
-downloadable from SuiteSparse — fetch them manually as described in
-Tutorial.md ("SPE benchmark") and drop spe{0.5m,2m,4m,8m,16m}.mm into
-matrix-files/.
+  * the chimeraIPM  FlowIPM22 SUBSET  uni_chimera_i<i>  (SuiteSparse),
+  * the spielmanIPM FlowIPM22 SUBSET  Spielman_k<k>     (SuiteSparse),
+and reports which SPE .mm files are present.
+
+Two data sources are MANUAL (not fetched here):
+  * The paper's FULL IPM sweep — uc.i<i>.eps<eps>.<cnt>.mm (chimera-IPM) and
+    sk<k>i<i>.mm (Spielman-IPM) — ships as ipmMat.zip (Tutorial.md). Unzip it
+    into matrix-files/ and the loaders prefer it over the FlowIPM22 subset
+    fetched here (see benchFamilies.jl chimeraIPMInstances/spielmanIPMInstances).
+  * SPE is not downloadable from SuiteSparse — fetch it manually as described in
+    Tutorial.md ("SPE benchmark") and drop spe{0.5m,2m,4m,8m,16m}.mm into
+    matrix-files/.
 ===========================================================#
 
 using JLD2
