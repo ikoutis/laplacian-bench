@@ -212,6 +212,12 @@ function runFamily(fam::BenchFamily, tests_lap, tests_sddm, opts, t0)
                     rep = rep, baseseed = seed)
             end
 
+            # Record the system kind (:lap vs :sddm) per row, aligned with the
+            # nv/ne/testName columns coreTest* just appended. Lets the paper-table
+            # emitter split SuiteSparse into its Laplacian and SDDM sub-tables
+            # (the paper partitions on zero-diagonal) without re-downloading.
+            push!(get!(dic, "kind", String[]), String(kind))
+
             dic["saved_at"] = string(Dates.now())
             @save fn dic
             ran += 1

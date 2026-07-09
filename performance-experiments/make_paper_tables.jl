@@ -12,14 +12,16 @@ repetitions, and emits, for the chosen solver columns (default the paper's two
 ApproxChol solvers plus CMG-legacy and CMG-K-elim):
 
   * paper_comparison.csv  — machine-readable, RFC-4180 quoted (testNames and
-    some solver names contain commas): one row per instance, per solver the
+    some solver names contain commas): one row per instance (all instances,
+    unfiltered), with the system kind (lap/sddm), per solver the
     build/solve/tot/its/err medians and the failure count.
   * paper_comparison.md   — one table per family (median total seconds with
     median iterations in parentheses), plus a per-family accuracy line and a
-    median cmg-k-elim-vs-ac total-time speedup footer. Analogous to the paper's
-    per-family tables.
-  * coverage.txt          — expected vs produced instance counts per family and
-    per-solver failures, so "nothing was missed" is auditable.
+    median cmg-k-elim-vs-ac total-time speedup footer. SuiteSparse is split into
+    a Laplacian and an SDDM table with ne > 1000, mirroring the paper.
+  * coverage.txt          — expected vs produced instance counts per family
+    (SuiteSparse also shows the Laplacian/SDDM split) and per-solver failures,
+    so "nothing was missed" is auditable.
 
 Aggregation: median across reps of finite build/solve/tot/its and err (matching
 the paper's printMedian). Failed runs (Inf from the harness) are excluded from
@@ -44,6 +46,11 @@ const EXPECTED = Dict("uniform_grid" => 3, "aniso" => 7, "wgrid" => 7,
     "checkered" => 7, "sachdeva_star" => 15, "suitesparse" => 28,
     "uni_chimera" => 4, "uni_bndry_chimera" => 4, "wted_chimera" => 4,
     "wted_bndry_chimera" => 4)
+
+# The paper's suitesparse.ipynb keeps only matrices with ne > 1000 in its tables
+# and splits them into a Laplacian and an SDDM table (partitioning on whether
+# the diagonal is zero). We mirror both for the `suitesparse` family.
+const NE_TABLE_MIN = 1000
 
 fin(v) = [x for x in v if isfinite(x)]
 medf(v) = isempty(v) ? Inf : median(v)
@@ -75,6 +82,9 @@ function aggregate(files, solvers)
             idx = findall(==(tn), tns)
             nv = haskey(dic, "nv") ? dic["nv"][idx[1]] : -1
             ne = haskey(dic, "ne") ? dic["ne"][idx[1]] : -1
+            # System kind (:lap/:sddm), recorded per row by chol_vs_kcycle.jl.
+            # Absent in older result files -> "" (no SuiteSparse Lap/SDDM split).
+            kind = haskey(dic, "kind") ? String(dic["kind"][idx[1]]) : ""
             slv = Dict{String,Any}()
             for s in solvers
                 if s in dic["names"]
@@ -93,7 +103,7 @@ function aggregate(files, solvers)
                               err = NaN, fail = 0, runs = 0, ran = false)
                 end
             end
-            push!(recs, (family = fam, matrix = String(tn), nv = nv, ne = ne, slv = slv))
+            push!(recs, (family = fam, matrix = String(tn), nv = nv, ne = ne, kind = kind, slv = slv))
         end
     end
     sort!(recs; by = r -> (famkey(r.family), natkey(r.matrix)))
@@ -102,14 +112,14 @@ end
 
 function write_csv(path, recs, solvers)
     open(path, "w") do io
-        header = ["family", "matrix", "nv", "ne"]
+        header = ["family", "matrix", "nv", "ne", "kind"]
         for s in solvers
             append!(header, ["$(s)_build_s", "$(s)_solve_s", "$(s)_tot_s",
                              "$(s)_its", "$(s)_err", "$(s)_fail"])
         end
         csvrow(io, header)
         for r in recs
-            row = Any[r.family, r.matrix, r.nv, r.ne]
+            row = Any[r.family, r.matrix, r.nv, r.ne, r.kind]
             for s in solvers
                 t = r.slv[s]
                 append!(row, [csvnum(t.build), csvnum(t.solve), csvnum(t.tot),
@@ -120,47 +130,71 @@ function write_csv(path, recs, solvers)
     end
 end
 
+# Emit one Markdown table (header + rows) plus a per-table accuracy line and a
+# median cmg-k-elim-vs-ac total-time speedup footer, for the given rows.
+function emit_md_table(io, title, rows, solvers)
+    println(io, "## $(title)  ($(length(rows)) instances)\n")
+    header = vcat(["matrix", "nv", "ne"], ["$(s)" for s in solvers])
+    println(io, "| ", join(header, " | "), " |")
+    println(io, "|", repeat("---|", length(header)))
+    for r in rows
+        cells = String[]
+        for s in solvers
+            t = r.slv[s]
+            if !t.ran
+                push!(cells, "--")
+            elseif !isfinite(t.tot)
+                push!(cells, "FAIL")
+            else
+                push!(cells, string(fmt(t.tot), " (", fmt(t.its), ")",
+                    t.fail > 0 ? " [$(t.fail)f]" : ""))
+            end
+        end
+        println(io, "| ", join(vcat([r.matrix, string(r.nv), string(r.ne)], cells), " | "), " |")
+    end
+    isempty(rows) && (println(io); return)
+    # per-table accuracy (max relres) and cmg-k-elim vs ac speedup
+    accs = [string(s, " ", fmt(maxf([r.slv[s].err for r in rows if isfinite(r.slv[s].err)]))) for s in solvers]
+    println(io, "\nMax relres: ", join(accs, ", "), ".")
+    if "ac" in solvers && "cmg-k-elim" in solvers
+        sp = fin([r.slv["ac"].tot / r.slv["cmg-k-elim"].tot for r in rows
+                  if isfinite(r.slv["ac"].tot) && isfinite(r.slv["cmg-k-elim"].tot) && r.slv["cmg-k-elim"].tot > 0])
+        if !isempty(sp)
+            println(io, "Median cmg-k-elim vs ac total-time speedup: ",
+                    @sprintf("%.2fx", median(sp)), " over $(length(sp)) instances.")
+        end
+    end
+    println(io)
+end
+
 function write_md(path, recs, solvers)
     open(path, "w") do io
         println(io, "# CMG vs ApproxChol — benchmark comparison\n")
         println(io, "Median total time in seconds with median iteration count in ",
                 "parentheses; `--` = solver not run, `FAIL` = all reps failed, ",
-                "`[Nf]` = N of the reps failed. One table per benchmark family.\n")
+                "`[Nf]` = N of the reps failed. One table per benchmark family; ",
+                "SuiteSparse is split into Laplacian and SDDM tables (ne > ",
+                "$(NE_TABLE_MIN)) as in the paper.\n")
         fams = unique([r.family for r in recs])
         sort!(fams; by = famkey)
         for fam in fams
             frecs = [r for r in recs if r.family == fam]
-            println(io, "## $(fam)  ($(length(frecs)) instances)\n")
-            header = vcat(["matrix", "nv", "ne"], ["$(s)" for s in solvers])
-            println(io, "| ", join(header, " | "), " |")
-            println(io, "|", repeat("---|", length(header)))
-            for r in frecs
-                cells = String[]
-                for s in solvers
-                    t = r.slv[s]
-                    if !t.ran
-                        push!(cells, "--")
-                    elseif !isfinite(t.tot)
-                        push!(cells, "FAIL")
-                    else
-                        push!(cells, string(fmt(t.tot), " (", fmt(t.its), ")",
-                            t.fail > 0 ? " [$(t.fail)f]" : ""))
-                    end
+            if fam == "suitesparse" && any(!isempty(r.kind) for r in frecs)
+                big = [r for r in frecs if r.ne > NE_TABLE_MIN]
+                small = [r for r in frecs if r.ne <= NE_TABLE_MIN]
+                lap = [r for r in big if r.kind == "lap"]
+                sddm = [r for r in big if r.kind == "sddm"]
+                other = [r for r in big if r.kind != "lap" && r.kind != "sddm"]
+                emit_md_table(io, "suitesparse — Laplacian (ne > $(NE_TABLE_MIN))", lap, solvers)
+                emit_md_table(io, "suitesparse — SDDM (ne > $(NE_TABLE_MIN))", sddm, solvers)
+                isempty(other) || emit_md_table(io, "suitesparse — unlabeled kind (ne > $(NE_TABLE_MIN))", other, solvers)
+                if !isempty(small)
+                    println(io, "_Excluded from the SuiteSparse tables (ne ≤ $(NE_TABLE_MIN), as in the paper): ",
+                            join([string(r.matrix, " (ne=", r.ne, ")") for r in small], ", "), "._\n")
                 end
-                println(io, "| ", join(vcat([r.matrix, string(r.nv), string(r.ne)], cells), " | "), " |")
+            else
+                emit_md_table(io, fam, frecs, solvers)
             end
-            # per-family accuracy (max relres) and cmg-k-elim vs ac speedup
-            accs = [string(s, " ", fmt(maxf([r.slv[s].err for r in frecs if isfinite(r.slv[s].err)]))) for s in solvers]
-            println(io, "\nMax relres: ", join(accs, ", "), ".")
-            if "ac" in solvers && "cmg-k-elim" in solvers
-                sp = fin([r.slv["ac"].tot / r.slv["cmg-k-elim"].tot for r in frecs
-                          if isfinite(r.slv["ac"].tot) && isfinite(r.slv["cmg-k-elim"].tot) && r.slv["cmg-k-elim"].tot > 0])
-                if !isempty(sp)
-                    println(io, "Median cmg-k-elim vs ac total-time speedup: ",
-                            @sprintf("%.2fx", median(sp)), " over $(length(sp)) instances.")
-                end
-            end
-            println(io)
         end
     end
 end
@@ -178,6 +212,18 @@ function write_coverage(path, recs, solvers)
                 exp = EXPECTED[fam]
                 mark = got == exp ? "OK" : got == 0 ? "MISSING" : "PARTIAL"
                 println(io, @sprintf("  %-20s %3d / %-3d  %s", fam, got, exp, mark))
+                # SuiteSparse: show the Laplacian/SDDM split and the ne<=1000
+                # matrices the paper drops from its tables (still counted here).
+                if fam == "suitesparse"
+                    frecs = [r for r in recs if r.family == "suitesparse"]
+                    if any(!isempty(r.kind) for r in frecs)
+                        nlap = count(r -> r.kind == "lap", frecs)
+                        nsddm = count(r -> r.kind == "sddm", frecs)
+                        nsmall = count(r -> r.ne <= NE_TABLE_MIN, frecs)
+                        println(io, @sprintf("  %-20s   Laplacian %d, SDDM %d; %d with ne<=%d excluded from tables",
+                            "", nlap, nsddm, nsmall, NE_TABLE_MIN))
+                    end
+                end
             elseif fam == "spe"
                 println(io, @sprintf("  %-20s %3d / manual  %s", fam, got,
                     got == 0 ? "skipped (SPE needs manual spe.zip)" : "present"))
@@ -237,10 +283,39 @@ function selftest()
         cov = joinpath(dir, "cov.txt"); write_coverage(cov, recs, solvers)
         csvtxt = read(csv, String)
         @assert occursin("\"uc.i1,eps0.1\"", csvtxt) "comma testName must be quoted in CSV"
-        @assert occursin("chimeraIPM,\"uc.i1,eps0.1\",10,30,1,0.5,1.5,7,1e-09,0", csvtxt) "ac row values"
+        # no "kind" recorded in this dic -> empty kind field between ne and the solver cols
+        @assert occursin("chimeraIPM,\"uc.i1,eps0.1\",10,30,,1,0.5,1.5,7,1e-09,0", csvtxt) "ac row values"
         mdtxt = read(md, String)
         @assert occursin("FAIL", mdtxt) "all-fail instance must show FAIL in MD"
         @assert occursin("speedup: 3.00x", mdtxt) "speedup footer (1.5/0.5 = 3x)"
+
+        # --- SuiteSparse Lap/SDDM split + ne>1000 filter ---
+        ss = Dict{String,Any}()
+        ss["names"] = ["ac", "cmg-k-elim"]
+        ss["testName"] = ["McRae/ecology1", "HB/bcsstm08", "HB/nos6"]
+        ss["nv"] = [1000, 900, 675]
+        ss["ne"] = [2000, 5000, 500]          # nos6 below threshold -> excluded from tables
+        ss["kind"] = ["lap", "sddm", "sddm"]
+        for s in ("ac", "cmg-k-elim"), col in ("build", "solve", "tot", "its", "err")
+            ss["$(s)_$(col)"] = [1.0, 1.0, 1.0]
+        end
+        fss = joinpath(dir, "suitesparse.paper.seed1.reps1.jld2")
+        JLD2.save(fss, "dic", ss)
+        ssrecs = aggregate([fss], solvers)
+        @assert length(ssrecs) == 3 "expected 3 suitesparse instances"
+        @assert ssrecs[findfirst(r -> r.matrix == "McRae/ecology1", ssrecs)].kind == "lap" "kind captured"
+        sscsv = joinpath(dir, "ss.csv"); write_csv(sscsv, ssrecs, solvers)
+        ssmd  = joinpath(dir, "ss.md");  write_md(ssmd, ssrecs, solvers)
+        sscov = joinpath(dir, "ss.cov"); write_coverage(sscov, ssrecs, solvers)
+        sscsvt = read(sscsv, String); ssmdt = read(ssmd, String); sscovt = read(sscov, String)
+        @assert occursin("suitesparse,McRae/ecology1,1000,2000,lap,", sscsvt) "kind column in CSV"
+        @assert occursin("suitesparse — Laplacian", ssmdt) "Laplacian subtable header"
+        @assert occursin("suitesparse — SDDM", ssmdt) "SDDM subtable header"
+        @assert occursin("| McRae/ecology1 |", ssmdt) "lap ne>1000 row present"
+        @assert occursin("| HB/bcsstm08 |", ssmdt) "sddm ne>1000 row present"
+        @assert !occursin("| HB/nos6 |", ssmdt) "ne<=1000 excluded from tables"
+        @assert occursin("HB/nos6 (ne=500)", ssmdt) "excluded note lists the small matrix"
+        @assert occursin("Laplacian 1, SDDM 2", sscovt) "coverage shows Lap/SDDM split"
         println("make_paper_tables selftest: PASSED")
     end
 end
