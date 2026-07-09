@@ -118,12 +118,18 @@ It runs the whole suite sequentially and summarizes at the end.
 
 ### 3. Summarize into public tables (after all jobs finish)
 
+`make_paper_tables.jl` does `using JLD2, …`, and JLD2's first-use precompile is
+heavy enough that the **login node may kill it** — run `summarize` on a **compute
+node** (small allocation is plenty; it just reads the `.jld2` results):
+
 ```bash
-cd performance-experiments
-./run_paper_comparison.sh summarize
+srun --account=ikoutis --partition=general --qos=standard \
+     --cpus-per-task=4 --mem=16G --time=00:30:00 --pty bash
+source performance-experiments/wulver/env_wulver.sh
+./performance-experiments/run_paper_comparison.sh summarize
 ```
 
-Writes into `../performance-analyses/chol-vs-kcycle/`:
+Writes into `performance-analyses/chol-vs-kcycle/`:
 
 - **`paper_comparison.csv`** — machine-readable, RFC-4180 quoted (some testNames
   contain commas): one row per instance (all instances, unfiltered), the system
