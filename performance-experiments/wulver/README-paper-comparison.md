@@ -78,6 +78,20 @@ cd performance-experiments/wulver
 If your `$HOME` quota is tight, `export CVK_DEPOT=/project/ikoutis/$USER/.julia`
 (or another roomy path) before running — the sbatch scripts honor the same var.
 
+**Interactive Julia (login or compute node).** To run Julia by hand — e.g. to
+confirm the IPM sweep is seen — source the env helper instead of retyping the
+module/depot loads (compute nodes are offline, so `srun` onto one first):
+
+```bash
+srun --account=ikoutis --partition=general --qos=standard \
+     --cpus-per-task=4 --mem=16G --time=00:30:00 --pty bash
+source performance-experiments/wulver/env_wulver.sh     # module + depot + thread pins
+julia --project=. -e 'include("julia-files/benchFamilies.jl"); @show length(chimeraIPMInstances(:paper)), length(spielmanIPMInstances(:paper))'
+```
+
+(Run `setup_wulver.sh` once on the login node first so the depot is instantiated;
+the helper only sets the environment, it does not install packages.)
+
 ### 2. Submit the full run (login node → Slurm)
 
 ```bash
