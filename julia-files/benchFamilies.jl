@@ -44,6 +44,10 @@ if !isdefined(Laplacians, :star_join)
 end
 
 const MATRIX_DIR = normpath(joinpath(@__DIR__, "..", "matrix-files"))
+# The Dropbox ipmMat.zip unzips into this subdirectory; the IPM readers look
+# here too so the sweep works whether it was flattened into matrix-files/ or
+# left inside ipmMat/.
+const IPM_SUBDIR = joinpath(MATRIX_DIR, "ipmMat")
 const SS_URL = "http://sparse-files.engr.tamu.edu/mat/"
 
 # Global download policy, set once by the runner (chol_vs_kcycle.jl) or
@@ -69,10 +73,14 @@ end
 
 # ------------------------------------------------------------------ loaders
 
-"Read a MatrixMarket file from matrix-files/; nothing if absent."
+"Read a MatrixMarket file from matrix-files/ (or matrix-files/ipmMat/); nothing if absent."
 function loadMMCached(name)
     path = joinpath(MATRIX_DIR, name * ".mm")
-    isfile(path) || return nothing
+    if !isfile(path)
+        alt = joinpath(IPM_SUBDIR, name * ".mm")
+        isfile(alt) || return nothing
+        path = alt
+    end
     return MatrixMarket.mmread(path)
 end
 
@@ -285,15 +293,20 @@ natkey(s::AbstractString) = ([parse(Int, m.match) for m in eachmatch(r"\d+", s)]
 
 # Bare names (no ".mm") of locally-staged IPM Matrix Market files whose bare
 # name matches `rx`, naturally sorted. These come from the manual ipmMat.zip
-# (the paper's full IPM sweep), which is NOT auto-downloadable.
+# (the paper's full IPM sweep), which is NOT auto-downloadable. Scans both
+# matrix-files/ and matrix-files/ipmMat/ (the zip's own subdirectory), so the
+# sweep is found whether it was flattened or left inside ipmMat/.
 function localIPMNames(rx::Regex)
-    isdir(MATRIX_DIR) || return String[]
     names = String[]
-    for f in readdir(MATRIX_DIR)
-        endswith(f, ".mm") || continue
-        bare = f[1:end-3]
-        occursin(rx, bare) && push!(names, bare)
+    for dir in (MATRIX_DIR, IPM_SUBDIR)
+        isdir(dir) || continue
+        for f in readdir(dir)
+            endswith(f, ".mm") || continue
+            bare = f[1:end-3]
+            occursin(rx, bare) && push!(names, bare)
+        end
     end
+    unique!(names)          # a name in both dirs -> once (top level wins on load)
     sort!(names; by = natkey)
     return names
 end

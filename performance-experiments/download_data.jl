@@ -15,9 +15,11 @@ and reports which SPE .mm files are present.
 
 Two data sources are MANUAL (not fetched here):
   * The paper's FULL IPM sweep — uc.i<i>.eps<eps>.<cnt>.mm (chimera-IPM) and
-    sk<k>i<i>.mm (Spielman-IPM) — ships as ipmMat.zip (Tutorial.md). Unzip it
-    into matrix-files/ and the loaders prefer it over the FlowIPM22 subset
-    fetched here (see benchFamilies.jl chimeraIPMInstances/spielmanIPMInstances).
+    sk<k>i<i>.mm (Spielman-IPM) — ships as ipmMat.zip (Tutorial.md). It unzips
+    into an ipmMat/ subdirectory; the loaders scan matrix-files/ AND
+    matrix-files/ipmMat/, so either flatten (mv ipmMat/*.mm .) or leave it. When
+    present, the loaders prefer this full sweep over the FlowIPM22 subset fetched
+    here (see benchFamilies.jl chimeraIPMInstances/spielmanIPMInstances).
   * SPE is not downloadable from SuiteSparse — fetch it manually as described in
     Tutorial.md ("SPE benchmark") and drop spe{0.5m,2m,4m,8m,16m}.mm into
     matrix-files/.
