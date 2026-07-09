@@ -25,7 +25,9 @@ ApproxChol solvers plus CMG-legacy and CMG-K-elim):
 
 Aggregation: median across reps of finite build/solve/tot/its and err (matching
 the paper's printMedian). Failed runs (Inf from the harness) are excluded from
-the medians and counted separately.
+the medians and counted separately. The chimera families draw a fresh random
+graph each rep, so their per-size samples are collapsed into one median row per
+size (matching the paper's per-size chimera tables).
 ===========================================================#
 
 using JLD2
@@ -52,6 +54,13 @@ const EXPECTED = Dict("uniform_grid" => 3, "aniso" => 7, "wgrid" => 7,
 # the diagonal is zero). We mirror both for the `suitesparse` family.
 const NE_TABLE_MIN = 1000
 
+# Chimera families draw a NEW random graph each rep (the instance index derives
+# from baseseed+rep), so a size run yields several distinct samples that all
+# share nv (= the size). We collapse those samples per size into one median row,
+# matching the paper's per-size chimera tables.
+const CHIMERA_FAMILIES = ["uni_chimera", "uni_bndry_chimera",
+    "wted_chimera", "wted_bndry_chimera"]
+
 fin(v) = [x for x in v if isfinite(x)]
 medf(v) = isempty(v) ? Inf : median(v)
 maxf(v) = isempty(v) ? Inf : maximum(v)
@@ -67,6 +76,54 @@ function csvfield(x)
         "\"" * replace(s, "\"" => "\"\"") * "\"" : s
 end
 csvrow(io, xs) = println(io, join(csvfield.(xs), ","))
+
+# Collapse a group of chimera samples (same family + nv) into one rec: median
+# over the samples of each per-solver stat, median ne, summed failures.
+function merge_samples(group, solvers)
+    fam = group[1].family
+    nv = group[1].nv
+    ne = round(Int, medf([Float64(r.ne) for r in group]))
+    n = length(group)
+    slv = Dict{String,Any}()
+    for s in solvers
+        ts = [r.slv[s] for r in group if r.slv[s].ran]
+        if isempty(ts)
+            slv[s] = (build = NaN, solve = NaN, tot = NaN, its = NaN,
+                      err = NaN, fail = 0, runs = 0, ran = false)
+        else
+            slv[s] = (build = medf(fin([t.build for t in ts])),
+                      solve = medf(fin([t.solve for t in ts])),
+                      tot   = medf(fin([t.tot for t in ts])),
+                      its   = medf(fin([t.its for t in ts])),
+                      err   = medf(fin([t.err for t in ts])),
+                      fail  = sum(t.fail for t in ts),
+                      runs  = sum(t.runs for t in ts),
+                      ran   = true)
+        end
+    end
+    return (family = fam, matrix = "$(fam)(n=$(nv), $(n) samples)",
+            nv = nv, ne = ne, kind = "lap", slv = slv)
+end
+
+# Collapse the chimera families' per-sample recs into one row per (family, nv).
+function collapse_chimera(recs, solvers)
+    out = Any[]
+    groups = Dict{Tuple{String,Int},Vector{Any}}()
+    order = Tuple{String,Int}[]
+    for r in recs
+        if r.family in CHIMERA_FAMILIES
+            key = (r.family, r.nv)
+            haskey(groups, key) || (groups[key] = Any[]; push!(order, key))
+            push!(groups[key], r)
+        else
+            push!(out, r)
+        end
+    end
+    for key in order
+        push!(out, merge_samples(groups[key], solvers))
+    end
+    return out
+end
 
 # One aggregated instance: family, matrix, nv, ne, and per-solver stats.
 function aggregate(files, solvers)
@@ -106,6 +163,7 @@ function aggregate(files, solvers)
             push!(recs, (family = fam, matrix = String(tn), nv = nv, ne = ne, kind = kind, slv = slv))
         end
     end
+    recs = collapse_chimera(recs, solvers)
     sort!(recs; by = r -> (famkey(r.family), natkey(r.matrix)))
     return recs
 end
@@ -316,6 +374,32 @@ function selftest()
         @assert !occursin("| HB/nos6 |", ssmdt) "ne<=1000 excluded from tables"
         @assert occursin("HB/nos6 (ne=500)", ssmdt) "excluded note lists the small matrix"
         @assert occursin("Laplacian 1, SDDM 2", sscovt) "coverage shows Lap/SDDM split"
+
+        # --- chimera per-size collapse (random samples -> one row per size) ---
+        ch = Dict{String,Any}()
+        ch["names"] = ["ac", "cmg-k-elim"]
+        # two sizes; size 10000 has two random samples, size 20000 has one
+        ch["testName"] = ["uni_chimera(10000 1001)", "uni_chimera(10000 1002)", "uni_chimera(20000 1001)"]
+        ch["nv"] = [10000, 10000, 20000]
+        ch["ne"] = [100, 200, 300]
+        ch["kind"] = ["lap", "lap", "lap"]
+        for s in ("ac", "cmg-k-elim"), col in ("build", "solve", "its", "err")
+            ch["$(s)_$(col)"] = [1.0, 1.0, 1.0]
+        end
+        ch["ac_tot"] = [1.0, 3.0, 9.0]         # size 10000 -> median(1,3)=2
+        ch["cmg-k-elim_tot"] = [1.0, 1.0, 1.0]
+        fch = joinpath(dir, "uni_chimera.n1e4.seed1.reps3.jld2")
+        JLD2.save(fch, "dic", ch)
+        chrecs = aggregate([fch], solvers)
+        @assert length(chrecs) == 2 "chimera should collapse 3 samples -> 2 size rows, got $(length(chrecs))"
+        c10 = chrecs[findfirst(r -> r.nv == 10000, chrecs)]
+        @assert c10.slv["ac"].tot == 2.0 "size 10000 tot = median(1,3) = 2"
+        @assert c10.ne == 150 "size 10000 ne = median(100,200) = 150"
+        @assert occursin("2 samples", c10.matrix) "collapsed label notes sample count"
+        @assert count(r -> r.family == "uni_chimera", chrecs) == 2 "2 collapsed uni_chimera size rows"
+        chcov = joinpath(dir, "ch.cov"); write_coverage(chcov, chrecs, solvers)
+        @assert occursin(r"uni_chimera\s+2 / 4", read(chcov, String)) "coverage counts collapsed size rows (2/4)"
+
         println("make_paper_tables selftest: PASSED")
     end
 end

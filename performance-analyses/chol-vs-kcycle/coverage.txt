@@ -1,0 +1,22 @@
+Coverage report — expected vs produced instances per family
+
+  uniform_grid           3 / 3    OK
+  aniso                  7 / 7    OK
+  wgrid                  7 / 7    OK
+  checkered              7 / 7    OK
+  sachdeva_star         15 / 15   OK
+  suitesparse           28 / 28   OK
+                         Laplacian 3, SDDM 25; 0 with ne<=1000 excluded from tables
+  spe                    0 / manual  skipped (SPE needs manual spe.zip)
+  chimeraIPM           128 / (sweep)  present
+  spielmanIPM           61 / (sweep)  present
+  uni_chimera           12 / 4    PARTIAL
+  uni_bndry_chimera     12 / 4    PARTIAL
+  wted_chimera          12 / 4    PARTIAL
+  wted_bndry_chimera    12 / 4    PARTIAL
+
+Per-solver failed instances (all reps Inf):
+  ac           none
+  ac-s2m2      none
+  cmg-v        none
+  cmg-k-elim   none
