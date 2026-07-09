@@ -279,11 +279,45 @@ function speInstances(scale; n = nothing, limit = nothing)
     return applyLimit(insts, limit)
 end
 
-# chimeraIPM: SuiteSparse FlowIPM22 IPM chimeras, named uni_chimera_i<i>
-# (each n = 1e5). The group holds i = 1..5; enumerate and skip any that are
-# not obtainable (offline and not cached, or genuinely absent).
+# Natural-order sort key: compare the sequence of embedded integers first (so
+# sk100i2 < sk100i10), then the raw string.
+natkey(s::AbstractString) = ([parse(Int, m.match) for m in eachmatch(r"\d+", s)], String(s))
+
+# Bare names (no ".mm") of locally-staged IPM Matrix Market files whose bare
+# name matches `rx`, naturally sorted. These come from the manual ipmMat.zip
+# (the paper's full IPM sweep), which is NOT auto-downloadable.
+function localIPMNames(rx::Regex)
+    isdir(MATRIX_DIR) || return String[]
+    names = String[]
+    for f in readdir(MATRIX_DIR)
+        endswith(f, ".mm") || continue
+        bare = f[1:end-3]
+        occursin(rx, bare) && push!(names, bare)
+    end
+    sort!(names; by = natkey)
+    return names
+end
+
+ipmInst(fam, nm) = BenchInstance("$(fam) $(nm)",
+    (baseseed, rep) -> begin
+        L = loadMMCached(nm)
+        L === nothing && return nothing
+        (:lap, ipmAdjacency(L), nm)
+    end)
+
+# chimeraIPM. If the manual full sweep (ipmMat.zip: uc.i<i>.eps<eps>.<cnt>.mm)
+# is staged in matrix-files/, use the paper's full set (capped by scale on i);
+# otherwise fall back to the auto-downloadable FlowIPM22 subset uni_chimera_i<i>.
 function chimeraIPMInstances(scale; n = nothing, limit = nothing)
     imax = scale === :paper ? 5 : scale === :medium ? 3 : 1
+    full = localIPMNames(r"^uc\.i\d+\.")
+    if !isempty(full)
+        keep = filter(nm -> (m = match(r"^uc\.i(\d+)\.", nm);
+                             m !== nothing && parse(Int, m.captures[1]) <= imax), full)
+        insts = [ipmInst("chimeraIPM", nm) for nm in keep]
+        isempty(insts) && @warn "chimeraIPM: staged uc.i*.mm present but none with i <= $(imax)"
+        return applyLimit(insts, limit)
+    end
     insts = BenchInstance[]
     for i in 1:imax
         name = "uni_chimera_i$(i)"
@@ -296,21 +330,28 @@ function chimeraIPMInstances(scale; n = nothing, limit = nothing)
             end))
     end
     if isempty(insts)
-        @warn "chimeraIPM: no uni_chimera_i*.mm/.mat under matrix-files/ — run performance-experiments/download_data.jl first"
+        @warn "chimeraIPM: no uc.i*.mm (manual ipmMat.zip) and no uni_chimera_i*.mm/.mat — run download_data.jl or stage ipmMat.zip"
     end
     return applyLimit(insts, limit)
 end
 
-# spielmanIPM: SuiteSparse FlowIPM22 Spielman graphs, named Spielman_k<k>,
-# k = 100..600 (one matrix per k). NOTE k500 (126M nnz) and k600 (217M nnz)
-# are large-memory instances — this family runs in the big-memory tier (see
-# BIG_FIXED in run_chol_vs_kcycle.sh); cap with --limit to skip the biggest.
+# spielmanIPM. If the manual full sweep (ipmMat.zip: sk<k>i<i>.mm) is staged,
+# use the paper's full set (k = 100..600 by scale, i = 1..11); otherwise fall
+# back to the auto FlowIPM22 subset Spielman_k<k>. NOTE the largest instances
+# are big-memory (this family runs in the big-memory tier; see BIG_FIXED in
+# run_chol_vs_kcycle.sh); cap with --limit to skip the biggest.
 function spielmanIPMInstances(scale; n = nothing, limit = nothing)
-    ks = scale === :paper  ? (100:100:600) :
-         scale === :medium ? (100:100:300) :
-                             (100:100:100)
+    kmax = scale === :paper ? 600 : scale === :medium ? 300 : 100
+    full = localIPMNames(r"^sk\d+i\d+$")
+    if !isempty(full)
+        keep = filter(nm -> (m = match(r"^sk(\d+)i\d+$", nm);
+                             m !== nothing && parse(Int, m.captures[1]) <= kmax), full)
+        insts = [ipmInst("spielmanIPM", nm) for nm in keep]
+        isempty(insts) && @warn "spielmanIPM: staged sk*i*.mm present but none with k <= $(kmax)"
+        return applyLimit(insts, limit)
+    end
     insts = BenchInstance[]
-    for k in ks
+    for k in 100:100:kmax
         name = "Spielman_k$(k)"
         ensureIPMCached(name) || continue
         push!(insts, BenchInstance("spielmanIPM $(name)",
@@ -321,7 +362,7 @@ function spielmanIPMInstances(scale; n = nothing, limit = nothing)
             end))
     end
     if isempty(insts)
-        @warn "spielmanIPM: no Spielman_k*.mm/.mat under matrix-files/ — run performance-experiments/download_data.jl first"
+        @warn "spielmanIPM: no sk*i*.mm (manual ipmMat.zip) and no Spielman_k*.mm/.mat — run download_data.jl or stage ipmMat.zip"
     end
     return applyLimit(insts, limit)
 end
