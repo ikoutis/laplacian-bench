@@ -15,28 +15,34 @@ Full tables: **[paper_comparison.md](performance-analyses/chol-vs-kcycle/paper_c
 (machine-readable) · [coverage.txt](performance-analyses/chol-vs-kcycle/coverage.txt)
 (completeness audit).
 
-Median **total-time speedup of `cmg-k-elim` over `ac`** (>1 = CMG faster), per family:
+Median **total-time speedup of `cmg-k-elim`** over `ac` and over classic CMG
+(`cmg-v`), per family (>1 = `cmg-k-elim` faster):
 
-| family | instances | speedup | character |
-|---|---:|---:|---|
-| sachdeva_star | 15 | **4.35×** | star-join of dense cliques |
-| checkered | 7 | **2.78×** | high-contrast checkerboard grids |
-| aniso | 7 | **2.24×** | anisotropic grids |
-| uniform_grid | 3 | **1.41×** | uniform grids (up to 2·10⁸ nnz) |
-| wgrid | 7 | **1.39×** | weighted grids |
-| suitesparse (Laplacian) | 3 | 0.98× | real-world matrices |
-| spielmanIPM | 61 | 0.97× | interior-point-method Laplacians |
-| wted_chimera | 4 | 0.92× | random weighted chimeras |
-| suitesparse (SDDM) | 25 | 0.90× | real-world matrices |
-| chimeraIPM | 128 | 0.90× | interior-point-method Laplacians |
-| uni_chimera | 4 | 0.84× | random unweighted chimeras |
-| uni_bndry_chimera | 4 | 0.78× | chimeras with boundary |
-| wted_bndry_chimera | 4 | 0.76× | weighted chimeras with boundary |
+| family | instances | vs `ac` | vs `cmg-v` | character |
+|---|---:|---:|---:|---|
+| sachdeva_star | 15 | **4.35×** | 0.72× | star-join of dense cliques |
+| checkered | 7 | **2.78×** | 0.86× | high-contrast checkerboard grids |
+| aniso | 7 | **2.24×** | 0.94× | anisotropic grids |
+| uniform_grid | 3 | **1.41×** | 0.95× | uniform grids (up to 2·10⁸ nnz) |
+| wgrid | 7 | **1.39×** | 0.93× | weighted grids |
+| suitesparse (Laplacian) | 3 | 0.98× | 1.01× | real-world matrices |
+| spielmanIPM | 61 | 0.97× | **7.98×** | interior-point-method Laplacians (near-tree) |
+| wted_chimera | 4 | 0.92× | 0.99× | random weighted chimeras |
+| suitesparse (SDDM) | 25 | 0.90× | 0.78× | real-world matrices |
+| chimeraIPM | 128 | 0.90× | 0.96× | interior-point-method Laplacians |
+| uni_chimera | 4 | 0.84× | 1.08× | random unweighted chimeras |
+| uni_bndry_chimera | 4 | 0.78× | 1.09× | chimeras with boundary |
+| wted_bndry_chimera | 4 | 0.76× | 0.93× | weighted chimeras with boundary |
 
-**Summary.** CMG (K-cycle with degree-1/2 elimination) is **1.4–4.4× faster on
-the structured/geometric families** and within **2–24% of ApproxChol on the
-unstructured ones**. Both solvers converged to the 1e-8 tolerance on every
-instance of every family — neither recorded a single failure.
+**Summary.** Against ApproxChol, CMG (K-cycle with degree-1/2 elimination) is
+**1.4–4.4× faster on the structured/geometric families** and within **2–24% on
+the unstructured ones**. Against classic CMG, the elimination default is a
+**~8× win on the near-tree `spielmanIPM` family** — exactly the structure
+degree-1/2 elimination targets — and roughly at parity elsewhere; on families
+with *no* low-degree structure classic CMG is somewhat faster (e.g.
+`sachdeva_star` 0.72×), which is why elimination is a switchable option. All
+three solvers converged to the 1e-8 tolerance on every instance of every
+family — not a single failure.
 
 **Solver columns.** `ac` = ApproxChol, the paper's base solver
 (`ApproxCholParams(:deg,0,0)`); `ac-s2m2` = its split-2/merge-2 variant (the
