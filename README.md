@@ -57,31 +57,28 @@ number that matters when one factorization serves many right-hand sides):
 | uni_bndry_chimera | **1.08×** | 0.59× | 0.58× | 0.58× |
 | wted_bndry_chimera | **1.08×** | 0.47× | 0.62× | 0.57× |
 
-**Summary.** On total time, `cmg-k-elim` **beats or ties `ac` on 13 of 14
-family groups** — up to **6.9×** on sachdeva_star, **2.7–3.8×** on the grid
-families, **2.3× on SPE** (the real-world reservoir matrices, included here for
-the first time), and 1.0–1.5× on the unstructured ones — the single exception
-being `wted_bndry_chimera` at 0.90×. The columns decompose *why*:
+**Summary.** On total time, `cmg-k-elim`'s per-family medians range from 6.9×
+(sachdeva_star) and 2.7–3.8× (the grid families and SPE) on the structured
+families down to 0.90–1.5× on the unstructured ones; its lowest family median is
+`wted_bndry_chimera` at 0.90×. The columns separate the two CMG changes:
 
-- **The K-cycle** (`cmg-k` vs `cmg-legacy`) is worth 10–35% on the grids, SPE,
-  and SuiteSparse; legacy remains the best CMG driver only on `sachdeva_star`,
-  where the hierarchy is near-exact and plain PCG suffices.
-- **The elimination** (`cmg-k-elim` vs `cmg-k`) is free where there is nothing
-  to eliminate (the adaptive skip: ratios 0.95–1.02× on grids, SPE, sachdeva)
-  and decisive where there is: on the near-tree **`spielmanIPM`** family,
-  CMG *without* elimination is 5–8× slower than `ac` (0.13×/0.20×), while
-  `cmg-k-elim` reaches parity on total time and **6.8× on solve** — elimination
-  is what makes CMG viable there at all.
-- **`ac-s2m2`** is 1.4–2× slower than plain `ac` everywhere except
-  `sachdeva_star` (2.02×), where plain `ac` stagnates — the same trade the
-  paper reports.
-- On solve-only time `ac` remains strong on the unstructured families
-  (chimeras, IPM-chimera), so its totals there lose mostly on build.
+- **The K-cycle** (`cmg-k` vs `cmg-legacy`) is 10–35% faster on the grids, SPE,
+  and SuiteSparse; legacy is faster on `sachdeva_star`, where the hierarchy is
+  near-exact and plain PCG suffices.
+- **The elimination** (`cmg-k-elim` vs `cmg-k`) is within 0.95–1.02× where there
+  are no low-degree vertices to remove (the adaptive skip — grids, SPE,
+  sachdeva) and larger where there are: on the near-tree `spielmanIPM` family,
+  CMG without elimination runs at 0.13×/0.20× of `ac` (total), while
+  `cmg-k-elim` is at parity on total time and 6.8× on solve.
+- **`ac-s2m2`** is 1.4–2× slower than plain `ac` except on `sachdeva_star`
+  (2.02×), where plain `ac` stagnates.
+- On solve-only time `ac` and `ac-s2m2` are faster than the CMG variants on the
+  unstructured families (chimeras, IPM-chimera); their totals there are
+  build-dominated.
 
-All five solvers converged on **every instance of every family — zero
-failures**, with one asterisk: plain `ac` again missed the 1e-8 target on the
-largest `sachdeva_star` instances (max relres 1.5e-6 — the stagnation the paper
-itself reports for AC; every other solver stayed ≤ 1e-8).
+All five solvers converged on every instance. Plain `ac` reached a maximum
+relres of 1.5e-6 on the largest `sachdeva_star` instances (above the 1e-8
+target); the other four stayed ≤ 1e-8.
 
 **Worst case per family** (minimum per-instance total-time speedup of
 `cmg-k-elim` vs `ac` — how badly it can lose, and where):
@@ -103,9 +100,9 @@ itself reports for AC; every other solver stayed ≤ 1e-8).
 | wted_bndry_chimera | 0.69× | n≈10⁵ |
 | suitesparse (SDDM) | 0.55× | HB/bcsstm21 |
 
-On every structured family and SPE, even the **worst** instance beats `ac` by
-1.6× or more. The suite-wide worst cases are one tiny SuiteSparse mass matrix
-(`bcsstm21`, millisecond scale) and single chimera instances at 0.69×.
+The lowest per-instance ratios in the suite are on a small SuiteSparse mass
+matrix (`bcsstm21`, millisecond scale, 0.55×) and single chimera instances
+(0.69×). On the structured families and SPE the worst instance stays ≥ 1.6×.
 
 **Solver columns.** `ac` = ApproxChol, the paper's base solver
 (`ApproxCholParams(:deg,0,0)`) — the baseline (1.00×); `ac-s2m2` = its
@@ -127,10 +124,6 @@ skip — the default of
   node-consistent; absolute times still vary across Wulver's heterogeneous
   nodes, so don't compare seconds across families or runs. Treat single-sample
   ratios within ±15% of 1 as noise.
-- **`sachdeva_star` favors CMG structurally** — its dense clique clusters are
-  ideal for CMG's aggregation (≈7 iterations at every size). The 6.9–8.1× is
-  against plain `ac`, which stagnates here; against the robust `ac-s2m2` the
-  CMG lead is ≈ 3–4×.
 - **Chimera rows are one random graph per size** (the generators draw a fresh
   graph per repetition, and this run used one repetition).
 - This comparison covers the two ApproxChol solvers and the CMG variants only —
