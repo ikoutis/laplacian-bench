@@ -221,3 +221,39 @@ PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
 The first compute-node Julia use after `fetch_cmg.sh` precompiles the updated
 CMG (offline is fine — the checkout is in-repo). Expected coverage: as round 1
 plus `spe 5 present`.
+
+## Chimera top-up: the paper's per-size instance counts
+
+By default the chimera families now run the paper's per-size counts (seed
+indices `i = 1..C`; `chimeraAndIPM.tex`): **103 / 105 / 23 / 8** instances at
+sizes 10⁴ / 10⁵ / 10⁶ / 10⁷ — versus the single instance per size used in the
+first two runs. The `make_paper_tables` collapse already medians per size, so
+the chimera rows become per-size medians over those C samples automatically.
+
+To bring an existing run (e.g. the 5-solver `seed2.reps1` run above) up to the
+paper counts **without re-running everything**, re-run only the four chimera
+families with the same solvers/seed/reps — `CVK_ONLY` restricts the submitted
+tasks, and the chimera `*.seed2.reps1.jld2` files are overwritten in place:
+
+```bash
+# --- login node ---
+cd /project/ikoutis/github/laplacian-bench/performance-experiments
+CVK_ONLY="uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera" \
+PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
+    ./run_paper_comparison.sh submit --scale paper --account ikoutis
+
+# --- after the chimera jobs finish: compute node, re-summarize everything ---
+source performance-experiments/wulver/env_wulver.sh
+PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
+    ./performance-experiments/run_paper_comparison.sh summarize
+```
+
+Re-summarizing picks up the refreshed chimera files together with the untouched
+grid/IPM/SPE/SuiteSparse results, so only the chimera rows change.
+
+**Compute note.** This is a large jump: ~239 instances per family (× 4 families
+× 5 solvers) instead of 4. The 10⁴/10⁵ instances are tiny and fast, but the 23×
+10⁶ and 8× 10⁷ per family are the long pole — give the chimera array tasks
+generous `--time` (the 10⁶ tasks run 23 instances sequentially in the small
+tier; the 10⁷ tasks run 8 in the 200G tier). Cap counts with
+`CVK_EXTRA="--limit N"` per task if you want a faster partial top-up first.

@@ -385,22 +385,33 @@ function spielmanIPMInstances(scale; n = nothing, limit = nothing)
     return applyLimit(insts, limit)
 end
 
-# Chimera families: one instance per size; the chimera index is derived from
-# (baseseed, rep) so instances are reproducible and seed streams are disjoint.
-chimeraIndex(baseseed, rep) = 1000 * Int(baseseed) + Int(rep)
+# Chimera families: the paper reports statistics over C instances per vertex
+# count, the Chimeras with seed indices i = 1..C (chimeraAndIPM.tex; "we always
+# choose the first seed indices ... we do not exclude any Chimeras"). C shrinks
+# with size because the large graphs are expensive. Each (size, i) is one
+# BenchInstance; `reps` then repeats the *timing* of these same instances rather
+# than drawing new graphs (unlike the earlier one-per-size design).
+const CHIMERA_COUNTS_PAPER = Dict(10^4 => 103, 10^5 => 105, 10^6 => 23, 10^7 => 8)
+chimeraCount(scale, sz) =
+    scale === :paper  ? get(CHIMERA_COUNTS_PAPER, Int(sz), 1) :
+    scale === :medium ? 5 :
+                        2
+
+# Helper so each closure captures its own (sz, i) — a bare for-loop closure over
+# the loop variables is a classic Julia capture footgun.
+chimeraInstance(gen, genname::String, kind::Symbol, sz, i) =
+    BenchInstance("$(genname) n=$(sz) i=$(i)",
+        (baseseed, rep) -> (kind, gen(Int64(sz), i), "$(genname)($(Int64(sz)),$(i))"))
 
 function chimeraInstances(gen, genname::String, kind::Symbol, scale; n = nothing, limit = nothing)
     sizes = n !== nothing ? n :
             scale === :paper  ? [10^4, 10^5, 10^6, 10^7] :
             scale === :medium ? [10^4, 10^5] :
                                 [10^4]
-    insts = [BenchInstance("$(genname) n=$(sz)",
-                 (baseseed, rep) -> begin
-                     i = chimeraIndex(baseseed, rep)
-                     mat = gen(Int64(sz), i)
-                     (kind, mat, "$(genname)($(Int64(sz)),$(i))")
-                 end)
-             for sz in sizes]
+    insts = BenchInstance[]
+    for sz in sizes, i in 1:chimeraCount(scale, sz)
+        push!(insts, chimeraInstance(gen, genname, kind, sz, i))
+    end
     return applyLimit(insts, limit)
 end
 
