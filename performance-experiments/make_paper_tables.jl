@@ -15,10 +15,13 @@ ApproxChol solvers plus CMG-legacy and CMG-K-elim):
     some solver names contain commas): one row per instance (all instances,
     unfiltered), with the system kind (lap/sddm), per solver the
     build/solve/tot/its/err medians and the failure count.
-  * paper_comparison.md   — one table per family (median total seconds with
-    median iterations in parentheses), plus a per-family accuracy line and a
-    median cmg-k-elim-vs-ac total-time speedup footer. SuiteSparse is split into
-    a Laplacian and an SDDM table with ne > 1000, mirroring the paper.
+  * paper_comparison.md   — a leading speedup-summary section (per-family
+    median total AND solve-only speedups of cmg-k-elim vs ac and cmg-v, plus a
+    worst-case-per-family table naming the worst instance), then one table per
+    family (median total seconds with median iterations in parentheses), a
+    per-family accuracy line, and a median cmg-k-elim-vs-ac total-time speedup
+    footer. SuiteSparse is split into a Laplacian and an SDDM table with
+    ne > 1000, mirroring the paper.
   * coverage.txt          — expected vs produced instance counts per family
     (SuiteSparse also shows the Laplacian/SDDM split) and per-solver failures,
     so "nothing was missed" is auditable.
@@ -188,6 +191,97 @@ function write_csv(path, recs, solvers)
     end
 end
 
+# ------------------------------------------------ speedup summary section
+
+const SPEEDUP_TARGET = "cmg-k-elim"
+const SPEEDUP_BASES = ["ac", "cmg-v"]
+
+# Group recs for the summary: FAMILY_ORDER order, with suitesparse split into
+# its Laplacian and SDDM halves when the kind column is recorded.
+function summary_groups(recs)
+    groups = Tuple{String,Vector{Any}}[]
+    fams = unique([r.family for r in recs])
+    sort!(fams; by = famkey)
+    for fam in fams
+        frecs = [r for r in recs if r.family == fam]
+        if fam == "suitesparse" && any(!isempty(r.kind) for r in frecs)
+            lap = [r for r in frecs if r.kind == "lap"]
+            sddm = [r for r in frecs if r.kind == "sddm"]
+            isempty(lap) || push!(groups, ("suitesparse (Laplacian)", lap))
+            isempty(sddm) || push!(groups, ("suitesparse (SDDM)", sddm))
+        else
+            push!(groups, (fam, frecs))
+        end
+    end
+    return groups
+end
+
+# Per-instance speedup base/target on `field` (:tot or :solve), with labels.
+function speedup_pairs(rows, base, field)
+    out = Tuple{Float64,String}[]
+    for r in rows
+        (r.slv[base].ran && r.slv[SPEEDUP_TARGET].ran) || continue
+        x = getfield(r.slv[base], field)
+        y = getfield(r.slv[SPEEDUP_TARGET], field)
+        (isfinite(x) && isfinite(y) && y > 0) || continue
+        push!(out, (x / y, r.matrix))
+    end
+    return out
+end
+
+spx(x) = string(fmt(x), "x")
+
+# Median (total + solve) and worst-case per-family speedup tables for
+# SPEEDUP_TARGET against whichever of SPEEDUP_BASES are in the run. No-op when
+# the target or every baseline is absent.
+function write_speedup_summary(io, recs, solvers)
+    SPEEDUP_TARGET in solvers || return
+    bases = [b for b in SPEEDUP_BASES if b in solvers]
+    isempty(bases) && return
+    groups = summary_groups(recs)
+
+    println(io, "## Speedup summary — `$(SPEEDUP_TARGET)` vs ",
+            join(("`$(b)`" for b in bases), ", "), "\n")
+    println(io, "Median per-family speedup of `$(SPEEDUP_TARGET)` (>1 = ",
+            "`$(SPEEDUP_TARGET)` faster). `total` = build + solve; `solve` ",
+            "excludes the one-time build (the relevant number when one ",
+            "factorization serves many right-hand sides).\n")
+    header = vcat(["family", "instances"],
+                  reduce(vcat, [["vs $(b) total", "vs $(b) solve"] for b in bases]))
+    println(io, "| ", join(header, " | "), " |")
+    println(io, "|", repeat("---|", length(header)))
+    for (label, rows) in groups
+        cells = String[label, string(length(rows))]
+        for b in bases
+            t = speedup_pairs(rows, b, :tot)
+            s = speedup_pairs(rows, b, :solve)
+            push!(cells, isempty(t) ? "--" : spx(median(first.(t))))
+            push!(cells, isempty(s) ? "--" : spx(median(first.(s))))
+        end
+        println(io, "| ", join(cells, " | "), " |")
+    end
+
+    println(io, "\nWorst case per family — minimum per-instance total-time ",
+            "speedup, and the instance it occurs on:\n")
+    header = vcat(["family"], reduce(vcat, [["vs $(b) worst", "instance"] for b in bases]))
+    println(io, "| ", join(header, " | "), " |")
+    println(io, "|", repeat("---|", length(header)))
+    for (label, rows) in groups
+        cells = String[label]
+        for b in bases
+            t = speedup_pairs(rows, b, :tot)
+            if isempty(t)
+                append!(cells, ["--", "--"])
+            else
+                v, m = minimum(t)
+                append!(cells, [spx(v), m])
+            end
+        end
+        println(io, "| ", join(cells, " | "), " |")
+    end
+    println(io)
+end
+
 # Emit one Markdown table (header + rows) plus a per-table accuracy line and a
 # median cmg-k-elim-vs-ac total-time speedup footer, for the given rows.
 function emit_md_table(io, title, rows, solvers)
@@ -233,6 +327,7 @@ function write_md(path, recs, solvers)
                 "`[Nf]` = N of the reps failed. One table per benchmark family; ",
                 "SuiteSparse is split into Laplacian and SDDM tables (ne > ",
                 "$(NE_TABLE_MIN)) as in the paper.\n")
+        write_speedup_summary(io, recs, solvers)
         fams = unique([r.family for r in recs])
         sort!(fams; by = famkey)
         for fam in fams
@@ -346,6 +441,12 @@ function selftest()
         mdtxt = read(md, String)
         @assert occursin("FAIL", mdtxt) "all-fail instance must show FAIL in MD"
         @assert occursin("speedup: 3.00x", mdtxt) "speedup footer (1.5/0.5 = 3x)"
+        # speedup summary: vs-ac only (no cmg-v in solvers); the all-fail
+        # instance is excluded, so median == worst == the single valid instance
+        @assert occursin("Speedup summary", mdtxt) "summary section present"
+        @assert occursin("vs ac total", mdtxt) && !occursin("vs cmg-v", mdtxt) "only ran baselines appear"
+        @assert occursin("| chimeraIPM | 2 | 3.00x | 2.50x |", mdtxt) "median total 1.5/0.5, solve 0.5/0.2"
+        @assert occursin("| chimeraIPM | 3.00x | uc.i1,eps0.1 |", mdtxt) "worst-case row names the instance"
 
         # --- SuiteSparse Lap/SDDM split + ne>1000 filter ---
         ss = Dict{String,Any}()
