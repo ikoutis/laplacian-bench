@@ -15,34 +15,66 @@ Full tables: **[paper_comparison.md](performance-analyses/chol-vs-kcycle/paper_c
 (machine-readable) · [coverage.txt](performance-analyses/chol-vs-kcycle/coverage.txt)
 (completeness audit).
 
-Median **total-time speedup of `cmg-k-elim`** over `ac` and over classic CMG
-(`cmg-v`), per family (>1 = `cmg-k-elim` faster):
+Median **speedup of `cmg-k-elim`** over `ac` and over classic CMG (`cmg-v`),
+per family (>1 = `cmg-k-elim` faster). **total** = build + solve; **solve**
+excludes the one-time preconditioner build — the number that matters when one
+factorization is reused across many right-hand sides:
 
-| family | instances | vs `ac` | vs `cmg-v` | character |
-|---|---:|---:|---:|---|
-| sachdeva_star | 15 | **4.35×** | 0.72× | star-join of dense cliques |
-| checkered | 7 | **2.78×** | 0.86× | high-contrast checkerboard grids |
-| aniso | 7 | **2.24×** | 0.94× | anisotropic grids |
-| uniform_grid | 3 | **1.41×** | 0.95× | uniform grids (up to 2·10⁸ nnz) |
-| wgrid | 7 | **1.39×** | 0.93× | weighted grids |
-| suitesparse (Laplacian) | 3 | 0.98× | 1.01× | real-world matrices |
-| spielmanIPM | 61 | 0.97× | **7.98×** | interior-point-method Laplacians (near-tree) |
-| wted_chimera | 4 | 0.92× | 0.99× | random weighted chimeras |
-| suitesparse (SDDM) | 25 | 0.90× | 0.78× | real-world matrices |
-| chimeraIPM | 128 | 0.90× | 0.96× | interior-point-method Laplacians |
-| uni_chimera | 4 | 0.84× | 1.08× | random unweighted chimeras |
-| uni_bndry_chimera | 4 | 0.78× | 1.09× | chimeras with boundary |
-| wted_bndry_chimera | 4 | 0.76× | 0.93× | weighted chimeras with boundary |
+| family | instances | vs `ac` total | vs `ac` solve | vs `cmg-v` total | vs `cmg-v` solve |
+|---|---:|---:|---:|---:|---:|
+| sachdeva_star | 15 | **4.35×** | **8.73×** | 0.72× | 0.60× |
+| checkered | 7 | **2.78×** | **2.67×** | 0.86× | 1.15× |
+| aniso | 7 | **2.24×** | **1.46×** | 0.94× | 1.27× |
+| uniform_grid | 3 | **1.41×** | 0.76× | 0.95× | 1.27× |
+| wgrid | 7 | **1.39×** | 0.83× | 0.93× | 1.21× |
+| suitesparse (Laplacian) | 3 | 0.98× | 0.80× | 1.01× | 1.19× |
+| spielmanIPM | 61 | 0.97× | **6.52×** | **7.98×** | **202×** |
+| wted_chimera | 4 | 0.92× | 1.03× | 0.99× | 1.39× |
+| suitesparse (SDDM) | 25 | 0.90× | 0.79× | 0.78× | 0.90× |
+| chimeraIPM | 128 | 0.90× | 0.56× | 0.96× | 1.05× |
+| uni_chimera | 4 | 0.84× | 0.80× | 1.08× | 1.43× |
+| uni_bndry_chimera | 4 | 0.78× | 0.71× | 1.09× | 1.42× |
+| wted_bndry_chimera | 4 | 0.76× | 0.68× | 0.93× | 1.33× |
 
-**Summary.** Against ApproxChol, CMG (K-cycle with degree-1/2 elimination) is
-**1.4–4.4× faster on the structured/geometric families** and within **2–24% on
-the unstructured ones**. Against classic CMG, the elimination default is a
-**~8× win on the near-tree `spielmanIPM` family** — exactly the structure
-degree-1/2 elimination targets — and roughly at parity elsewhere; on families
-with *no* low-degree structure classic CMG is somewhat faster (e.g.
-`sachdeva_star` 0.72×), which is why elimination is a switchable option. All
+**Summary.** On total time, CMG (K-cycle with degree-1/2 elimination) is
+**1.4–4.4× faster than ApproxChol on the structured/geometric families** and
+within **2–24% on the unstructured ones**. Against classic CMG it is a
+**~8× total-time win on the near-tree `spielmanIPM` family** — exactly the
+structure degree-1/2 elimination targets — and roughly at parity elsewhere; on
+families with *no* low-degree structure classic CMG is somewhat faster (e.g.
+`sachdeva_star` 0.72×), which is why elimination is a switchable option. The
+solve-only columns show where the time goes: `cmg-k-elim`'s totals are
+build-dominated, so in the many-right-hand-sides regime its lead grows —
+**8.7× over `ac` on `sachdeva_star`, 6.5× on `spielmanIPM`** (where the
+eliminated solve is ~200× faster than classic CMG's) — while `ac` keeps a
+solve-time edge on the IPM-chimera and several unstructured families. All
 three solvers converged to the 1e-8 tolerance on every instance of every
 family — not a single failure.
+
+**Worst case per family** (minimum per-instance total-time speedup — how badly
+`cmg-k-elim` can lose within each family, and where):
+
+| family | worst vs `ac` | on instance | worst vs `cmg-v` | on instance |
+|---|---:|---|---:|---|
+| sachdeva_star | 1.02× | star_join(K₁₀₀, 50) | 0.54× | star_join(K₃₀₀, 150) |
+| checkered | 2.37× | 2·10⁸ nnz, 2³ blocks | 0.75× | 2·10⁸ nnz, 4³ blocks |
+| aniso | 2.03× | 2·10⁸ nnz, ξ=0.001 | 0.92× | 2·10⁸ nnz, ξ=1 |
+| uniform_grid | 1.35× | 2·10⁶ nnz | 0.94× | 2·10⁷ nnz |
+| wgrid | 0.86× | 2·10⁸ nnz, w=1000 | 0.68× | 2·10⁸ nnz, w=0.01 |
+| suitesparse (Laplacian) | 0.83× | Gaertner/nopoly | 0.57× | Andrews/Andrews |
+| suitesparse (SDDM) | 0.58× | Oberwolfach/t3dl_e | 0.67× | HB/bcsstm23 |
+| chimeraIPM | 0.31× | uc.n1e5.i3.eps1e-5.2 | 0.47× | uc.n1e5.i3.eps1e-5.2 |
+| spielmanIPM | 0.84× | k500.i7 | 6.14× | k300.i7 |
+| uni_chimera | 0.58× | n=10⁶ | 0.85× | n=10⁶ |
+| uni_bndry_chimera | 0.56× | n≈10⁶ | 0.82× | n≈10⁶ |
+| wted_chimera | 0.87× | n=10⁶ | 0.85× | n=10⁶ |
+| wted_bndry_chimera | 0.69× | n≈10⁴ | 0.83× | n≈10⁷ |
+
+The single worst instance across the whole suite is one chimera-IPM Laplacian
+where `cmg-k-elim` takes 3.2× `ac`'s total time (0.31×); on every structured
+family its worst instance still ties or beats `ac`, the sole exception being
+the heaviest `wgrid` weighting (w=1000, 0.86× — the other six `wgrid`
+instances are 1.10–2.40×).
 
 **Solver columns.** `ac` = ApproxChol, the paper's base solver
 (`ApproxCholParams(:deg,0,0)`); `ac-s2m2` = its split-2/merge-2 variant (the
