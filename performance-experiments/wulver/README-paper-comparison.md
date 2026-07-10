@@ -171,3 +171,53 @@ per-solver failure lines flag instances where a solver hit maxits or errored.
 ./run_paper_comparison.sh run --scale smoke
 ./run_paper_comparison.sh summarize
 ```
+
+## Round 2: five solvers, SPE included, adaptive elimination
+
+A second full run designed to decompose the round-1 findings:
+
+- **Five solver columns** — `ac, ac-s2m2, cmg-v, cmg-k, cmg-k-elim`. Adding
+  plain `cmg-k` separates the two effects that round 1 conflated: `cmg-k` vs
+  `cmg-v` isolates the K-cycle, `cmg-k-elim` vs `cmg-k` isolates the
+  elimination. The speedup summary reports both automatically.
+- **Adaptive elimination** — requires the updated CombinatorialMultigrid.jl
+  (`build_eliminated_hierarchy` pre-scan skip), so `cmg-k-elim`'s build no
+  longer pays the rebuild on structure-less graphs. Update the in-repo CMG
+  checkout before submitting.
+- **reps = 1** — the harness warms up every solver on a tiny Laplacian + SDDM
+  before any timed region, so JIT never lands in a timing; a single repetition
+  suffices for this comparison. (Chimera families then have one random sample
+  per size.)
+- **seed = 2** — gives this run its own `*.seed2.reps1.jld2` filenames, so it
+  cannot collide with round 1 (`seed1.reps3`) or older dev files, and
+  `summarize` picks up exactly this run.
+- **Same node per instance** — guaranteed by construction: each family (or
+  chimera family × size) is one Slurm array task on one node, and the harness
+  runs every solver sequentially on each instance within that task. No
+  instance is ever timed across different nodes.
+- **SPE included** — stage it first (manual): download `spe.zip`
+  (<https://www.dropbox.com/s/7fp4yq69brcew8g/spe.zip?dl=0>, Tutorial.md
+  §"SPE benchmark") and put `spe{0.5m,2m,4m,8m,16m}.mm` **flat** in
+  `matrix-files/` (if the zip extracts into a subdirectory, `mv` them up —
+  the SPE loader reads the top level only). The family's 5e-9 tolerance is
+  applied automatically.
+
+```bash
+# --- login node ---
+cd /project/ikoutis/github/laplacian-bench
+git pull
+performance-experiments/wulver/fetch_cmg.sh          # update in-repo CMG (adaptive skip)
+ls matrix-files/spe*.mm                              # SPE staged? expect 5 files
+cd performance-experiments
+PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
+    ./run_paper_comparison.sh submit --scale paper --account ikoutis
+
+# --- after the jobs finish: compute node ---
+source performance-experiments/wulver/env_wulver.sh
+PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
+    ./performance-experiments/run_paper_comparison.sh summarize
+```
+
+The first compute-node Julia use after `fetch_cmg.sh` precompiles the updated
+CMG (offline is fine — the checkout is in-repo). Expected coverage: as round 1
+plus `spe 5 present`.
