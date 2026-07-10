@@ -29,13 +29,13 @@ relative to `ac`** (the paper's ApproxChol baseline, ≡ 1.00×; >1 = faster tha
 | uniform_grid | 3 | 0.50× | 2.21× | 2.58× | **2.65×** |
 | spe | 5 | 0.69× | 1.80× | **2.51×** | **2.28×** |
 | suitesparse (Laplacian) | 3 | 0.77× | 1.11× | 1.38× | **1.51×** |
-| wted_chimera | 4 | 0.60× | 1.28× | 1.30× | **1.33×** |
+| wted_chimera | 4 | 0.59× | 1.23× | 1.21× | **1.23×** |
 | chimeraIPM | 128 | 0.47× | 1.23× | 1.15× | **1.20×** |
-| uni_bndry_chimera | 4 | 0.66× | 1.31× | 1.32× | **1.15×** |
-| uni_chimera | 4 | 0.60× | 1.16× | 1.10× | **1.10×** |
+| uni_bndry_chimera | 4 | 0.66× | 0.86× | 1.07× | **1.17×** |
+| uni_chimera | 4 | 0.55× | 0.74× | 0.92× | **1.13×** |
+| wted_bndry_chimera | 4 | 0.66× | 1.12× | 1.19× | **1.10×** |
 | suitesparse (SDDM) | 25 | 0.75× | 1.04× | 1.08× | **1.02×** |
 | spielmanIPM | 61 | 0.65× | 0.13× | 0.20× | **0.99×** |
-| wted_bndry_chimera | 4 | 0.61× | 0.94× | 1.09× | **0.90×** |
 
 Solve-only speedup vs `ac` (excludes the one-time preconditioner build — the
 number that matters when one factorization serves many right-hand sides):
@@ -43,24 +43,26 @@ number that matters when one factorization serves many right-hand sides):
 | family | `ac-s2m2` | `cmg-legacy` | `cmg-k` | `cmg-k-elim` |
 |---|---:|---:|---:|---:|
 | sachdeva_star | 12.44× | **20.03×** | 12.84× | 12.79× |
-| checkered | 0.94× | 2.72× | **3.03×** | 2.80× |
 | spielmanIPM | 1.01× | 0.04× | 0.06× | **6.80×** |
+| checkered | 0.94× | 2.72× | **3.03×** | 2.80× |
 | wgrid | 1.03× | 1.28× | **1.79×** | 1.59× |
 | aniso | 0.96× | 1.16× | 1.39× | **1.43×** |
 | uniform_grid | 1.07× | 1.00× | **1.32×** | 1.30× |
 | spe | **1.19×** | 0.65× | **1.19×** | 1.04× |
-| wted_chimera | **1.28×** | 0.82× | 0.92× | 1.09× |
 | suitesparse (Laplacian) | **1.34×** | 0.66× | 0.97× | 0.96× |
 | suitesparse (SDDM) | **1.09×** | 0.89× | 0.89× | 0.81× |
+| uni_chimera | **1.11×** | 0.44× | 0.52× | 0.76× |
+| uni_bndry_chimera | **1.12×** | 0.44× | 0.49× | 0.74× |
+| wted_chimera | **1.08×** | 0.55× | 0.57× | 0.69× |
+| wted_bndry_chimera | **1.17×** | 0.48× | 0.52× | 0.65× |
 | chimeraIPM | **0.92×** | 0.49× | 0.44× | 0.58× |
-| uni_chimera | **1.05×** | 0.60× | 0.64× | 0.63× |
-| uni_bndry_chimera | **1.08×** | 0.59× | 0.58× | 0.58× |
-| wted_bndry_chimera | **1.08×** | 0.47× | 0.62× | 0.57× |
 
 **Summary.** On total time, `cmg-k-elim`'s per-family medians range from 6.9×
-(sachdeva_star) and 2.7–3.8× (the grid families and SPE) on the structured
-families down to 0.90–1.5× on the unstructured ones; its lowest family median is
-`wted_bndry_chimera` at 0.90×. The columns separate the two CMG changes:
+(sachdeva_star) and 2.3–3.8× (the grid families and SPE) on the structured
+families down to roughly parity on the least favorable ones; its lowest family
+median is `spielmanIPM` at 0.99×, and the four random-chimera families all now
+sit between 1.10× and 1.23× (each row a median over the paper's per-size sample
+counts, below). The columns separate the two CMG changes:
 
 - **The K-cycle** (`cmg-k` vs `cmg-legacy`) is 10–35% faster on the grids, SPE,
   and SuiteSparse; legacy is faster on `sachdeva_star`, where the hierarchy is
@@ -69,16 +71,22 @@ families down to 0.90–1.5× on the unstructured ones; its lowest family median
   are no low-degree vertices to remove (the adaptive skip — grids, SPE,
   sachdeva) and larger where there are: on the near-tree `spielmanIPM` family,
   CMG without elimination runs at 0.13×/0.20× of `ac` (total), while
-  `cmg-k-elim` is at parity on total time and 6.8× on solve.
+  `cmg-k-elim` is at parity on total time and 6.8× on solve. The random-chimera
+  families benefit too — elimination lifts `uni_chimera` from 0.92× (`cmg-k`) to
+  1.13× (`cmg-k-elim`) on total time.
 - **`ac-s2m2`** is 1.4–2× slower than plain `ac` except on `sachdeva_star`
   (2.02×), where plain `ac` stagnates.
 - On solve-only time `ac` and `ac-s2m2` are faster than the CMG variants on the
   unstructured families (chimeras, IPM-chimera); their totals there are
   build-dominated.
 
-All five solvers converged on every instance. Plain `ac` reached a maximum
-relres of 1.5e-6 on the largest `sachdeva_star` instances (above the 1e-8
-target); the other four stayed ≤ 1e-8.
+`ac` and `ac-s2m2` converged on every instance. The three CMG variants missed
+the 1e-8 tolerance within the 1000-iteration cap on a small number of 10⁵-node
+chimera draws — at most 3 of 105 per family, all at n=10⁵ — so those draws are
+excluded from the affected per-size medians (which remain over ≥102 converged
+samples). Plain `ac` reached a maximum relres of 1.5e-6 on the largest
+`sachdeva_star` instances (above the 1e-8 target); elsewhere all solvers stayed
+≤ 1e-8.
 
 **Worst case per family** (minimum per-instance total-time speedup of
 `cmg-k-elim` vs `ac` — how badly it can lose, and where):
@@ -92,17 +100,20 @@ target); the other four stayed ≤ 1e-8.
 | wgrid | 1.90× | 2·10⁸ nnz, w=10 |
 | spe | 1.62× | spe2m |
 | suitesparse (Laplacian) | 1.23× | Gaertner/nopoly |
-| wted_chimera | 1.15× | n=10⁷ |
-| uni_bndry_chimera | 1.07× | n≈10⁷ |
-| uni_chimera | 0.98× | n=10⁶ |
+| uni_bndry_chimera | 0.98× | n≈10⁴ |
+| wted_bndry_chimera | 0.92× | n≈10⁴ |
+| uni_chimera | 0.84× | n=10⁴ |
+| wted_chimera | 0.82× | n=10⁴ |
 | spielmanIPM | 0.78× | k600.i4 |
 | chimeraIPM | 0.69× | uc.n1e5.i3.eps0.1.4 |
-| wted_bndry_chimera | 0.69× | n≈10⁵ |
 | suitesparse (SDDM) | 0.55× | HB/bcsstm21 |
 
-The lowest per-instance ratios in the suite are on a small SuiteSparse mass
-matrix (`bcsstm21`, millisecond scale, 0.55×) and single chimera instances
-(0.69×). On the structured families and SPE the worst instance stays ≥ 1.6×.
+For the chimera families the worst cell is the minimum over the four per-size
+medians. The lowest ratios in the suite are on a small SuiteSparse mass matrix
+(`bcsstm21`, millisecond scale, 0.55×) and the smallest chimera sizes
+(0.82–0.98× at n≈10⁴), where the one-time preconditioner build dominates a
+sub-second solve. On the structured families and SPE the worst instance stays
+≥ 1.6×.
 
 **Solver columns.** `ac` = ApproxChol, the paper's base solver
 (`ApproxCholParams(:deg,0,0)`) — the baseline (1.00×); `ac-s2m2` = its
@@ -122,12 +133,18 @@ skip — the default of
   a full JIT warm-up of every solver, seed 2. Crucially, **all five solvers run
   sequentially on the same node for every instance**, so the ratios are
   node-consistent; absolute times still vary across Wulver's heterogeneous
-  nodes, so don't compare seconds across families or runs. Treat single-sample
-  ratios within ±15% of 1 as noise.
-- **The four chimera families each have four rows — one per graph size**
-  (10⁴, 10⁵, 10⁶, 10⁷). The chimera generators draw a fresh random graph per
-  repetition; this run used one repetition, so each row is a single random
-  graph at that size (4 sizes × 1 draw = the "4 instances").
+  nodes, so don't compare seconds across families or runs. Each timed value is a
+  single repetition (after warm-up); the deterministic families (grids,
+  SuiteSparse, SPE, sachdeva) are one graph each, so treat their per-instance
+  ratios within ±15% of 1 as timing noise.
+- **The four chimera families each show four rows — one per graph size**
+  (10⁴, 10⁵, 10⁶, 10⁷), but each row is a **median over the paper's per-size
+  sample counts** — 103 / 105 / 23 / 8 random graphs at 10⁴ / 10⁵ / 10⁶ / 10⁷
+  respectively (≈239 graphs per family, `i = 1..C` as in the paper). So the
+  chimera medians are robust, not single draws; the "4" in the instances column
+  is the number of size rows, not the graph count. A few 10⁵ draws did not
+  converge for the CMG variants (≤3 of 105 per family) and are dropped from
+  those size medians, as noted above.
 - This comparison covers the two ApproxChol solvers and the CMG variants only —
   not the paper's full external-solver sweep (LAMG, HyPre, PETSc, ICC,
   MATLAB-CMG).

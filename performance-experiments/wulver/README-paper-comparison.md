@@ -101,9 +101,14 @@ CVK_REPS=3 ./run_paper_comparison.sh submit --scale paper --account ikoutis
 
 This pins `--solvers ac,ac-s2m2,cmg-v,cmg-k-elim` and reps=3, emits the
 small/large task manifests, and submits two array jobs (the large tier gets
-`--mem=200G --time=72:00:00` for the big grids, 1e7 chimeras, and k500/k600
-Spielman-IPM graphs). Monitor with `squeue -u $USER`; per-family `.jld2` results
-land in `../performance-analyses/chol-vs-kcycle/`.
+`--mem=200G --time=48:00:00`, which fits the chunked 10⁶/10⁷ chimeras). At paper
+scale the chimera families are split into parallel `--chunk` array elements —
+see *Chimera top-up* below for the chunk defaults and how whole instances stay
+on one node. If a from-scratch run's large tier also carries the biggest
+un-chunked fixed graphs (nnz~2e8 grids, spielmanIPM k500/k600), give those more
+head-room with `--sbatch-extra "--time=72:00:00"`. Monitor with
+`squeue -u $USER`; per-family `.jld2` results land in
+`../performance-analyses/chol-vs-kcycle/`.
 
 **Single-allocation alternative** (smoke/medium, or a modest paper run on one
 big-memory node): edit `--account` in `paper_comparison.sbatch`, then
@@ -230,14 +235,31 @@ sizes 10⁴ / 10⁵ / 10⁶ / 10⁷ — versus the single instance per size used
 first two runs. The `make_paper_tables` collapse already medians per size, so
 the chimera rows become per-size medians over those C samples automatically.
 
-To bring an existing run (e.g. the 5-solver `seed2.reps1` run above) up to the
-paper counts **without re-running everything**, re-run only the four chimera
-families with the same solvers/seed/reps — `CVK_ONLY` restricts the submitted
-tasks, and the chimera `*.seed2.reps1.jld2` files are overwritten in place:
+**Parallelism.** At `--scale paper` each chimera family × size is now split into
+several Slurm array elements via `--chunk K/C` (defaults: 10⁴ → 1, 10⁵ → 2,
+10⁶ → 8, 10⁷ → 8; override a size with `CVK_CHUNKS_1e6=12` etc., or all sizes
+with `CVK_CHUNKS`). Each chunk runs **whole instances** — all solvers for a
+given graph stay together on one node — so same-node-per-instance timing is
+preserved while Slurm spreads the chunks across cores/nodes. The 10⁶/10⁷ chunks
+go to the 200 G large tier at `--time=48:00:00`; the 10⁴/10⁵ chunks stay on the
+small tier.
+
+Because a chunk's filename carries a `.chunkKofC` tag
+(`uni_chimera.n1e6.chunk3of8.seed2.reps1.jld2`), the new chunked files do **not**
+overwrite the prior run's single-sample chimera files
+(`uni_chimera.n1e6.seed2.reps1.jld2`). **Delete the stale chimera outputs first**
+so the summarize glob doesn't fold an old single sample into the new per-size
+median:
 
 ```bash
 # --- login node ---
 cd /project/ikoutis/github/laplacian-bench/performance-experiments
+
+# 1. Clear the previous chimera results for this seed/reps (chunked or not).
+#    Grids / IPM / SPE / SuiteSparse files are left untouched.
+rm -f ../performance-analyses/chol-vs-kcycle/{uni_chimera,uni_bndry_chimera,wted_chimera,wted_bndry_chimera}.*.seed2.reps1.jld2
+
+# 2. Submit the chimera top-up (chunked + 48h flow through automatically).
 CVK_ONLY="uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera" \
 PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
     ./run_paper_comparison.sh submit --scale paper --account ikoutis
@@ -248,12 +270,14 @@ PAPER_SOLVERS="ac,ac-s2m2,cmg-v,cmg-k,cmg-k-elim" CVK_REPS=1 CVK_SEED=2 \
     ./performance-experiments/run_paper_comparison.sh summarize
 ```
 
-Re-summarizing picks up the refreshed chimera files together with the untouched
-grid/IPM/SPE/SuiteSparse results, so only the chimera rows change.
+Re-summarizing picks up the refreshed chimera chunk files together with the
+untouched grid/IPM/SPE/SuiteSparse results, so only the chimera rows change.
+`make_paper_tables` collapses by `(family, nv)`, so the several chunk files for
+one size are medianed together into a single per-size row automatically.
 
-**Compute note.** This is a large jump: ~239 instances per family (× 4 families
-× 5 solvers) instead of 4. The 10⁴/10⁵ instances are tiny and fast, but the 23×
-10⁶ and 8× 10⁷ per family are the long pole — give the chimera array tasks
-generous `--time` (the 10⁶ tasks run 23 instances sequentially in the small
-tier; the 10⁷ tasks run 8 in the 200G tier). Cap counts with
-`CVK_EXTRA="--limit N"` per task if you want a faster partial top-up first.
+**Compute note.** This is a large jump: 103 / 105 / 23 / 8 instances per family
+(× 4 families × 5 solvers) instead of 4. Chunking is what keeps it tractable —
+the 8× 10⁷ per family run one instance per array element, and the 23× 10⁶ run
+~3 per element, all in parallel rather than as one long sequential task. Cap
+counts with `CVK_EXTRA="--limit N"` per task for a faster partial top-up first,
+or raise `CVK_CHUNKS_1e6`/`CVK_CHUNKS_1e7` to fan out further.

@@ -54,10 +54,14 @@ const USAGE = """
 usage: julia --project=.. chol_vs_kcycle.jl <family|all>
            [--scale smoke|medium|paper] [--n 1e6[,1e7]] [--reps R] [--seed S]
            [--tol T] [--maxits K] [--solvers ac,ac-s2m2,cmg-k,cmg-v,cmg-k-elim,cmg-v-elim]
-           [--limit N] [--max-hours H] [--out DIR] [--no-warmup] [--offline]
+           [--limit N] [--chunk K/C] [--max-hours H] [--out DIR] [--no-warmup] [--offline]
 families: $(join(FAMILY_ORDER, " ")), or: all
 --offline (or CVK_OFFLINE=1): never fetch matrices at run time; use only
   already-cached/prefetched data (see download_data.jl).
+--chunk K/C: run only the K-th of C contiguous slices of this family's
+  instance list (1<=K<=C). Whole instances stay together (all solvers on
+  one node), so C array elements parallelize a big family across nodes.
+  The output filename gets a .chunkKofC tag before the .seedS.repsR suffix.
 """
 
 function parseArgs(args)
@@ -65,6 +69,7 @@ function parseArgs(args)
         :family => nothing, :scale => :smoke, :n => nothing, :ntoken => nothing,
         :reps => 3, :seed => 1, :tol => nothing, :maxits => 1000,
         :solvers => nothing, :limit => nothing, :maxhours => nothing,
+        :chunk => nothing,
         :out => normpath(joinpath(@__DIR__, "..", "performance-analyses", "chol-vs-kcycle")),
         :warmup => true,
         :offline => lowercase(get(ENV, "CVK_OFFLINE", "")) in ("1", "true", "yes"),
@@ -95,6 +100,13 @@ function parseArgs(args)
             opts[:solvers] = String.(split(needsval(a), ','))
         elseif a == "--limit"
             opts[:limit] = Base.parse(Int, needsval(a))
+        elseif a == "--chunk"
+            tok = needsval(a)
+            m = match(r"^(\d+)/(\d+)$", tok)
+            m === nothing && error("--chunk must be K/C (e.g. 1/4), got $(tok)")
+            k = Base.parse(Int, m.captures[1]); c = Base.parse(Int, m.captures[2])
+            (c >= 1 && 1 <= k <= c) || error("--chunk K/C needs 1<=K<=C, got $(tok)")
+            opts[:chunk] = (k, c)
         elseif a == "--max-hours"
             opts[:maxhours] = Base.parse(Float64, needsval(a))
         elseif a == "--out"
@@ -147,7 +159,21 @@ end
 outName(famname, opts) = begin
     scaletag = opts[:ntoken] !== nothing ? "n" * replace(opts[:ntoken], ',' => '-') :
                String(opts[:scale])
-    "$(famname).$(scaletag).seed$(opts[:seed]).reps$(opts[:reps]).jld2"
+    # Chunk tag goes before the .seedS.repsR.jld2 suffix so the summarize glob
+    # (*.seed$S.reps$R.jld2) still matches and split(".")[1] stays the family.
+    chunktag = opts[:chunk] === nothing ? "" :
+               ".chunk$(opts[:chunk][1])of$(opts[:chunk][2])"
+    "$(famname).$(scaletag)$(chunktag).seed$(opts[:seed]).reps$(opts[:reps]).jld2"
+end
+
+# Contiguous, balanced slice K (1-indexed) of C for an n-element list. The
+# first mod(n,c) chunks get one extra element; later chunks may be empty when
+# c > n. Whole instances stay intact — chunking never splits a single instance.
+function chunkRange(n::Integer, k::Integer, c::Integer)
+    base = div(n, c); extra = mod(n, c)
+    lo = (k - 1) * base + min(k - 1, extra) + 1
+    len = base + (k <= extra ? 1 : 0)
+    return lo:(lo + len - 1)
 end
 
 function runFamily(fam::BenchFamily, tests_lap, tests_sddm, opts, t0)
@@ -162,6 +188,13 @@ function runFamily(fam::BenchFamily, tests_lap, tests_sddm, opts, t0)
     insts = fam.sized ?
         fam.instances(opts[:scale]; n = opts[:n], limit = opts[:limit]) :
         fam.instances(opts[:scale]; limit = opts[:limit])
+
+    if opts[:chunk] !== nothing
+        k, c = opts[:chunk]
+        rng = chunkRange(length(insts), k, c)
+        println("chunk $(k)/$(c): instances $(isempty(rng) ? "none" : "$(first(rng))..$(last(rng))") of $(length(insts))")
+        insts = insts[rng]
+    end
 
     if isempty(insts)
         println("family $(fam.name): no instances available at scale $(opts[:scale]) — nothing to do")

@@ -18,10 +18,10 @@ Median per-family speedup of `cmg-k-elim` (>1 = `cmg-k-elim` faster). `total` = 
 | spe | 5 | 2.28x | 1.04x | 1.25x | 1.29x | 1.00x | 1.01x |
 | chimeraIPM | 128 | 1.20x | 0.584x | 0.96x | 1.17x | 1.06x | 1.34x |
 | spielmanIPM | 61 | 0.988x | 6.80x | 7.97x | 194x | 4.90x | 118x |
-| uni_chimera | 4 | 1.10x | 0.632x | 1.00x | 1.06x | 1.01x | 0.996x |
-| uni_bndry_chimera | 4 | 1.15x | 0.576x | 1.02x | 1.01x | 1.03x | 1.01x |
-| wted_chimera | 4 | 1.33x | 1.09x | 1.06x | 1.17x | 1.12x | 1.16x |
-| wted_bndry_chimera | 4 | 0.9x | 0.568x | 0.972x | 1.12x | 0.86x | 0.929x |
+| uni_chimera | 4 | 1.13x | 0.763x | 1.42x | 1.75x | 1.22x | 1.46x |
+| uni_bndry_chimera | 4 | 1.17x | 0.739x | 1.24x | 1.71x | 1.10x | 1.50x |
+| wted_chimera | 4 | 1.23x | 0.692x | 1.02x | 1.19x | 1.01x | 1.17x |
+| wted_bndry_chimera | 4 | 1.10x | 0.65x | 1.02x | 1.31x | 0.996x | 1.20x |
 
 Worst case per family — minimum per-instance total-time speedup, and the instance it occurs on:
 
@@ -37,10 +37,10 @@ Worst case per family — minimum per-instance total-time speedup, and the insta
 | spe | 1.62x | spe2m | 0.961x | spe0.5m | 0.833x | spe2m |
 | chimeraIPM | 0.69x | uni_chimera.n100000.i3.eps0.1.4 | 0.81x | uni_chimera.n100000.i5.eps0.1.1 | 0.947x | uni_chimera.n100000.i2.eps0.1.1 |
 | spielmanIPM | 0.785x | spielman.k600.low0.25.up1.0e-6.i4 | 6.49x | spielman.k400.low0.25.up1.0e-6.i7 | 3.65x | spielman.k600.low0.25.up1.0e-6.i4 |
-| uni_chimera | 0.98x | uni_chimera(n=1000000, 1 samples) | 0.841x | uni_chimera(n=1000000, 1 samples) | 0.914x | uni_chimera(n=10000, 1 samples) |
-| uni_bndry_chimera | 1.07x | uni_bndry_chimera(n=9953703, 1 samples) | 0.762x | uni_bndry_chimera(n=990000, 1 samples) | 0.753x | uni_bndry_chimera(n=990000, 1 samples) |
-| wted_chimera | 1.15x | wted_chimera(n=10000000, 1 samples) | 1.03x | wted_chimera(n=10000, 1 samples) | 0.914x | wted_chimera(n=10000000, 1 samples) |
-| wted_bndry_chimera | 0.687x | wted_bndry_chimera(n=97872, 1 samples) | 0.866x | wted_bndry_chimera(n=990000, 1 samples) | 0.779x | wted_bndry_chimera(n=990000, 1 samples) |
+| uni_chimera | 0.836x | uni_chimera(n=10000, 103 samples) | 1.23x | uni_chimera(n=10000, 103 samples) | 1.12x | uni_chimera(n=10000, 103 samples) |
+| uni_bndry_chimera | 0.976x | uni_bndry_chimera(n=9545, 103 samples) | 1.09x | uni_bndry_chimera(n=990000, 23 samples) | 0.938x | uni_bndry_chimera(n=990000, 23 samples) |
+| wted_chimera | 0.815x | wted_chimera(n=10000, 103 samples) | 0.899x | wted_chimera(n=1000000, 23 samples) | 0.864x | wted_chimera(n=1000000, 23 samples) |
+| wted_bndry_chimera | 0.916x | wted_bndry_chimera(n=9545, 103 samples) | 0.882x | wted_bndry_chimera(n=9953703, 8 samples) | 0.822x | wted_bndry_chimera(n=9953703, 8 samples) |
 
 ## uniform_grid  (3 instances)
 
@@ -387,47 +387,47 @@ Median cmg-k-elim vs ac total-time speedup: 0.99x over 61 instances.
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
-| uni_chimera(n=10000, 1 samples) | 10000 | 82820 | 0.0284 (20.00) | 0.062 (15.00) | 0.0247 (25.00) | 0.026 (24.00) | 0.0284 (24.00) |
-| uni_chimera(n=100000, 1 samples) | 100000 | 787082 | 0.992 (24.00) | 1.65 (18.00) | 0.77 (33.00) | 0.684 (22.00) | 0.676 (22.00) |
-| uni_chimera(n=1000000, 1 samples) | 1000000 | 6529900 | 10.13 (23.00) | 16.68 (19.00) | 8.68 (23.00) | 10.31 (23.00) | 10.33 (23.00) |
-| uni_chimera(n=10000000, 1 samples) | 10000000 | 47255012 | 102 (60.00) | 89.29 (36.00) | 101 (40.00) | 92.41 (41.00) | 84.83 (37.00) |
+| uni_chimera(n=10000, 103 samples) | 10000 | 50860 | 0.0314 (20.00) | 0.0489 (16.00) | 0.0462 (29.00) | 0.0422 (29.00) | 0.0376 (24.00) |
+| uni_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.587 (22.00) | 1.09 (17.00) | 0.885 (31.00) [3f] | 0.757 (30.00) [3f] | 0.632 (26.00) [2f] |
+| uni_chimera(n=1000000, 23 samples) | 1000000 | 7382752 | 6.64 (25.00) | 11.73 (18.00) | 5.98 (34.00) | 5.23 (32.00) | 4.18 (28.00) |
+| uni_chimera(n=10000000, 8 samples) | 10000000 | 60510273 | 107 (27.00) | 204 (19.00) | 135 (44.50) | 101 (35.00) | 80.00 (26.50) |
 
-Max relres: ac 8.8e-09, ac-s2m2 7.96e-09, cmg-v 8.92e-09, cmg-k 9.4e-09, cmg-k-elim 9.4e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.10x over 4 instances.
+Max relres: ac 8.13e-09, ac-s2m2 7.64e-09, cmg-v 8.38e-09, cmg-k 8.1e-09, cmg-k-elim 7.13e-09.
+Median cmg-k-elim vs ac total-time speedup: 1.13x over 4 instances.
 
 ## uni_bndry_chimera  (4 instances)
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
-| uni_bndry_chimera(n=9545, 1 samples) | 9545 | 75835 | 0.0255 (18.00) | 0.0386 (14.00) | 0.0224 (23.00) | 0.0223 (23.00) | 0.022 (23.00) |
-| uni_bndry_chimera(n=97872, 1 samples) | 97872 | 756114 | 0.467 (22.00) | 0.789 (17.00) | 0.287 (26.00) | 0.3 (21.00) | 0.281 (21.00) |
-| uni_bndry_chimera(n=990000, 1 samples) | 990000 | 6410152 | 4.96 (23.00) | 7.54 (18.00) | 3.33 (23.00) | 3.29 (23.00) | 4.37 (23.00) |
-| uni_bndry_chimera(n=9953703, 1 samples) | 9953703 | 46863747 | 94.18 (49.00) | 89.90 (33.00) | 106 (40.00) | 92.12 (41.00) | 87.69 (37.00) |
+| uni_bndry_chimera(n=9545, 103 samples) | 9545 | 46771 | 0.016 (18.00) | 0.022 (15.00) | 0.02 (25.00) | 0.0184 (25.00) | 0.0164 (22.00) |
+| uni_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.287 (20.00) | 0.442 (16.00) | 0.319 (29.00) [2f] | 0.277 (28.00) [2f] | 0.254 (24.00) [1f] |
+| uni_bndry_chimera(n=990000, 23 samples) | 990000 | 7245708 | 5.91 (23.00) | 10.47 (17.00) | 4.68 (31.00) | 4.03 (31.00) | 4.30 (27.00) |
+| uni_bndry_chimera(n=9953703, 8 samples) | 9953703 | 59997346 | 93.52 (26.00) | 140 (18.50) | 114 (40.00) | 85.40 (33.50) | 77.56 (25.00) |
 
-Max relres: ac 9.49e-09, ac-s2m2 9.52e-09, cmg-v 9.65e-09, cmg-k 8.68e-09, cmg-k-elim 7.34e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.15x over 4 instances.
+Max relres: ac 8.34e-09, ac-s2m2 6.34e-09, cmg-v 8.46e-09, cmg-k 8.71e-09, cmg-k-elim 7.71e-09.
+Median cmg-k-elim vs ac total-time speedup: 1.17x over 4 instances.
 
 ## wted_chimera  (4 instances)
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
-| wted_chimera(n=10000, 1 samples) | 10000 | 82820 | 0.0296 (18.00) | 0.0579 (14.00) | 0.0213 (20.00) | 0.0222 (22.00) | 0.0206 (22.00) |
-| wted_chimera(n=100000, 1 samples) | 100000 | 787082 | 0.828 (29.00) | 1.20 (20.00) | 0.335 (28.00) | 0.319 (25.00) | 0.275 (25.00) |
-| wted_chimera(n=1000000, 1 samples) | 1000000 | 6529900 | 4.59 (20.00) | 9.33 (14.00) | 3.91 (24.00) | 5.75 (24.00) | 3.74 (24.00) |
-| wted_chimera(n=10000000, 1 samples) | 10000000 | 47255012 | 68.42 (47.00) | 69.75 (31.00) | 63.71 (35.00) | 54.49 (30.00) | 59.63 (29.00) |
+| wted_chimera(n=10000, 103 samples) | 10000 | 50860 | 0.0154 (17.00) | 0.024 (13.00) | 0.02 (23.00) | 0.0192 (23.00) | 0.0189 (20.00) |
+| wted_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.352 (18.00) | 0.609 (14.00) | 0.275 (23.00) [1f] | 0.267 (22.00) [1f] | 0.264 (20.00) [1f] |
+| wted_chimera(n=1000000, 23 samples) | 1000000 | 7382752 | 6.59 (23.00) | 11.02 (16.00) | 4.68 (25.00) | 4.50 (23.00) | 5.21 (22.00) |
+| wted_chimera(n=10000000, 8 samples) | 10000000 | 60510273 | 95.38 (26.00) | 174 (18.00) | 80.13 (28.00) | 86.43 (27.50) | 80.38 (23.00) |
 
-Max relres: ac 9.8e-09, ac-s2m2 6.75e-09, cmg-v 9.23e-09, cmg-k 9.57e-09, cmg-k-elim 9.57e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.33x over 4 instances.
+Max relres: ac 7.86e-09, ac-s2m2 6.26e-09, cmg-v 8.53e-09, cmg-k 7.36e-09, cmg-k-elim 6.43e-09.
+Median cmg-k-elim vs ac total-time speedup: 1.23x over 4 instances.
 
 ## wted_bndry_chimera  (4 instances)
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
-| wted_bndry_chimera(n=9545, 1 samples) | 9545 | 75835 | 0.024 (17.00) | 0.0391 (13.00) | 0.0206 (20.00) | 0.0181 (21.00) | 0.0194 (21.00) |
-| wted_bndry_chimera(n=97872, 1 samples) | 97872 | 756114 | 0.461 (25.00) | 0.762 (19.00) | 0.595 (29.00) | 0.557 (28.00) | 0.672 (28.00) |
-| wted_bndry_chimera(n=990000, 1 samples) | 990000 | 6410152 | 6.94 (19.00) | 11.82 (14.00) | 6.34 (23.00) | 5.70 (21.00) | 7.32 (21.00) |
-| wted_bndry_chimera(n=9953703, 1 samples) | 9953703 | 46863747 | 70.71 (37.00) | 85.25 (28.00) | 99.82 (33.00) | 74.01 (29.00) | 83.09 (27.00) |
+| wted_bndry_chimera(n=9545, 103 samples) | 9545 | 46771 | 0.014 (15.00) | 0.0206 (13.00) | 0.0163 (22.00) | 0.0161 (22.00) | 0.0152 (19.00) |
+| wted_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.316 (16.00) | 0.492 (13.00) | 0.273 (22.00) [1f] | 0.259 (23.00) [1f] | 0.256 (20.00) [1f] |
+| wted_bndry_chimera(n=990000, 23 samples) | 990000 | 7245708 | 6.53 (20.00) | 10.69 (16.00) | 3.73 (24.00) | 3.73 (24.00) | 3.80 (22.00) |
+| wted_bndry_chimera(n=9953703, 8 samples) | 9953703 | 59997346 | 80.68 (24.00) | 118 (18.00) | 74.21 (29.00) | 69.18 (24.00) | 84.18 (23.50) |
 
-Max relres: ac 9.25e-09, ac-s2m2 7.38e-09, cmg-v 9.79e-09, cmg-k 8.14e-09, cmg-k-elim 9.05e-09.
-Median cmg-k-elim vs ac total-time speedup: 0.90x over 4 instances.
+Max relres: ac 7.78e-09, ac-s2m2 6.69e-09, cmg-v 8.9e-09, cmg-k 7.24e-09, cmg-k-elim 6.46e-09.
+Median cmg-k-elim vs ac total-time speedup: 1.10x over 4 instances.
 
