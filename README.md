@@ -124,8 +124,10 @@ skip — the default of
   node-consistent; absolute times still vary across Wulver's heterogeneous
   nodes, so don't compare seconds across families or runs. Treat single-sample
   ratios within ±15% of 1 as noise.
-- **Chimera rows are one random graph per size** (the generators draw a fresh
-  graph per repetition, and this run used one repetition).
+- **The four chimera families each have four rows — one per graph size**
+  (10⁴, 10⁵, 10⁶, 10⁷). The chimera generators draw a fresh random graph per
+  repetition; this run used one repetition, so each row is a single random
+  graph at that size (4 sizes × 1 draw = the "4 instances").
 - This comparison covers the two ApproxChol solvers and the CMG variants only —
   not the paper's full external-solver sweep (LAMG, HyPre, PETSc, ICC,
   MATLAB-CMG).
