@@ -7,7 +7,7 @@ Coverage report — expected vs produced instances per family
   sachdeva_star         15 / 15   OK
   suitesparse           28 / 28   OK
                          Laplacian 3, SDDM 25; 0 with ne<=1000 excluded from tables
-  spe                    0 / manual  skipped (SPE needs manual spe.zip)
+  spe                    5 / manual  present
   chimeraIPM           128 / (sweep)  present
   spielmanIPM           61 / (sweep)  present
   uni_chimera            4 / 4    OK
@@ -19,4 +19,5 @@ Per-solver failed instances (all reps Inf):
   ac           none
   ac-s2m2      none
   cmg-v        none
+  cmg-k        none
   cmg-k-elim   none
