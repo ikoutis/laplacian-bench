@@ -13,7 +13,8 @@
 #                           [--extra "ARGS..."] [--dry-run]
 #
 # Defaults: --scale smoke; reps by scale (paper 3, medium 5, smoke 2); seed 1.
-# Environment overrides: CVK_SCALE, CVK_REPS, CVK_SEED, CVK_JULIA, CVK_EXTRA.
+# Environment overrides: CVK_SCALE, CVK_REPS, CVK_SEED, CVK_JULIA, CVK_EXTRA,
+# CVK_ONLY (space-separated family list — restrict to those families).
 #
 # Examples:
 #   ./run_chol_vs_kcycle.sh                                   # quick smoke pass
@@ -68,10 +69,17 @@ CHIMERA_FAMILIES=(uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera)
 # chimeras, and the FlowIPM22 Spielman graphs — k500/k600 are 126M/217M nnz).
 BIG_FIXED="aniso wgrid checkered uniform_grid spe spielmanIPM"
 
+# Optional family filter. CVK_ONLY="fam1 fam2 ..." restricts the emitted/run
+# tasks to those families (e.g. re-run only the chimeras to top up a prior run).
+# Empty = every family.
+ONLY="${CVK_ONLY:-}"
+in_only() { [[ -z "$ONLY" ]] || [[ " $ONLY " == *" $1 "* ]]; }
+
 SMALL_TASKS=()
 LARGE_TASKS=()
 
 for fam in "${FIXED_FAMILIES[@]}"; do
+    in_only "$fam" || continue
     task="$fam $COMMON"
     if [[ "$SCALE" == "paper" && " $BIG_FIXED " == *" $fam "* ]]; then
         LARGE_TASKS+=("$task")
@@ -80,6 +88,7 @@ for fam in "${FIXED_FAMILIES[@]}"; do
     fi
 done
 for fam in "${CHIMERA_FAMILIES[@]}"; do
+    in_only "$fam" || continue
     for n in "${CHIMERA_SIZES[@]}"; do
         task="$fam --n $n $COMMON"
         if [[ "$SCALE" == "paper" && "$n" == "1e7" ]]; then
