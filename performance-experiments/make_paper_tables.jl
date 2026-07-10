@@ -194,7 +194,9 @@ end
 # ------------------------------------------------ speedup summary section
 
 const SPEEDUP_TARGET = "cmg-k-elim"
-const SPEEDUP_BASES = ["ac", "cmg-v"]
+# cmg-v isolates the cycle change; cmg-k isolates the elimination (k vs k-elim).
+# Bases absent from a run are simply omitted from the summary.
+const SPEEDUP_BASES = ["ac", "cmg-v", "cmg-k"]
 
 # Group recs for the summary: FAMILY_ORDER order, with suitesparse split into
 # its Laplacian and SDDM halves when the kind column is recorded.
@@ -444,7 +446,8 @@ function selftest()
         # speedup summary: vs-ac only (no cmg-v in solvers); the all-fail
         # instance is excluded, so median == worst == the single valid instance
         @assert occursin("Speedup summary", mdtxt) "summary section present"
-        @assert occursin("vs ac total", mdtxt) && !occursin("vs cmg-v", mdtxt) "only ran baselines appear"
+        @assert occursin("vs ac total", mdtxt) && !occursin("vs cmg-v", mdtxt) &&
+                !occursin("vs cmg-k ", mdtxt) "only ran baselines appear"
         @assert occursin("| chimeraIPM | 2 | 3.00x | 2.50x |", mdtxt) "median total 1.5/0.5, solve 0.5/0.2"
         @assert occursin("| chimeraIPM | 3.00x | uc.i1,eps0.1 |", mdtxt) "worst-case row names the instance"
 
