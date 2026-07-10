@@ -64,7 +64,11 @@ if [[ -s "$SMALL_MF" ]]; then
 fi
 if [[ -s "$LARGE_MF" ]]; then
     N=$(wc -l < "$LARGE_MF")
-    submit --array="1-$N" --mem=200G --time=72:00:00 --export=ALL,CVK_MANIFEST="$LARGE_MF" \
+    # 48h fits the chunked 1e6/1e7 chimeras (each element runs a few whole
+    # instances). A from-scratch run whose large tier also holds the biggest
+    # un-chunked fixed graphs (spielmanIPM k500/k600, nnz~2e8 grids) can add
+    # more time via --sbatch-extra "--time=72:00:00".
+    submit --array="1-$N" --mem=200G --time=48:00:00 --export=ALL,CVK_MANIFEST="$LARGE_MF" \
         "${SBATCH_ARGS[@]+"${SBATCH_ARGS[@]}"}" chol_vs_kcycle_array.sbatch
 fi
 

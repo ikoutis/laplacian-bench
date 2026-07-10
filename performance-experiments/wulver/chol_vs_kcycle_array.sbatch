@@ -9,13 +9,15 @@
 #          --export=ALL,CVK_MANIFEST=$PWD/manifest.paper.small.txt \
 #          chol_vs_kcycle_array.sbatch
 #   sbatch --array=1-$(wc -l < manifest.paper.large.txt) \
-#          --mem=200G --time=72:00:00 \
+#          --mem=200G --time=48:00:00 \
 #          --export=ALL,CVK_MANIFEST=$PWD/manifest.paper.large.txt \
 #          chol_vs_kcycle_array.sbatch
 #
-# The header below is the SMALL tier (chimeras up to 1e6, medium grids).
-# The LARGE tier (1e7 chimeras, nnz~2e8 grids, spe16m) is submitted with the
-# --mem/--time overrides shown above; command-line flags override #SBATCH.
+# The header below is the SMALL tier (fixed small families, chunked 1e4/1e5
+# chimeras). The LARGE tier (chunked 1e6/1e7 chimeras, nnz~2e8 grids, spe16m,
+# spielmanIPM k500/k600) is submitted with the --mem/--time overrides shown
+# above; command-line flags override #SBATCH. Chunked chimeras fit well inside
+# 48h; the biggest un-chunked fixed graphs may want --time=72:00:00.
 #
 # EDIT BEFORE FIRST USE: --account (your PI's account UCID; list yours with
 #   sacctmgr show associations user=$USER format=account%30 )

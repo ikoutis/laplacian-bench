@@ -69,6 +69,27 @@ CHIMERA_FAMILIES=(uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera)
 # chimeras, and the FlowIPM22 Spielman graphs — k500/k600 are 126M/217M nnz).
 BIG_FIXED="aniso wgrid checkered uniform_grid spe spielmanIPM"
 
+# Paper-scale chimera families are split into parallel Slurm array elements
+# (one per --chunk slice) so a big size isn't one long sequential task. Each
+# chunk runs WHOLE instances (all solvers together) on one node, so
+# same-node-per-instance timing is preserved and Slurm spreads chunks across
+# cores/nodes. Override a size with CVK_CHUNKS_<size> (e.g. CVK_CHUNKS_1e6=12)
+# or every size with CVK_CHUNKS. Chunking only applies at --scale paper.
+chunks_for_size() {
+    local n="$1" d per
+    case "$n" in
+        1e4) d=1 ;; 1e5) d=2 ;; 1e6) d=8 ;; 1e7) d=8 ;; *) d=1 ;;
+    esac
+    case "$n" in
+        1e4) per="${CVK_CHUNKS_1e4:-$d}" ;;
+        1e5) per="${CVK_CHUNKS_1e5:-$d}" ;;
+        1e6) per="${CVK_CHUNKS_1e6:-$d}" ;;
+        1e7) per="${CVK_CHUNKS_1e7:-$d}" ;;
+        *)   per="$d" ;;
+    esac
+    echo "${CVK_CHUNKS:-$per}"
+}
+
 # Optional family filter. CVK_ONLY="fam1 fam2 ..." restricts the emitted/run
 # tasks to those families (e.g. re-run only the chimeras to top up a prior run).
 # Empty = every family.
@@ -90,12 +111,24 @@ done
 for fam in "${CHIMERA_FAMILIES[@]}"; do
     in_only "$fam" || continue
     for n in "${CHIMERA_SIZES[@]}"; do
-        task="$fam --n $n $COMMON"
-        if [[ "$SCALE" == "paper" && "$n" == "1e7" ]]; then
-            LARGE_TASKS+=("$task")
-        else
-            SMALL_TASKS+=("$task")
-        fi
+        nchunks=1
+        [[ "$SCALE" == "paper" ]] && nchunks=$(chunks_for_size "$n")
+        # 1e6/1e7 chimera chunks are expensive: route them to the large tier
+        # (more memory + the 48h wall time). 1e4/1e5 chunks stay on small.
+        big=0
+        [[ "$SCALE" == "paper" && ( "$n" == "1e6" || "$n" == "1e7" ) ]] && big=1
+        for ((k = 1; k <= nchunks; k++)); do
+            if [[ "$nchunks" -gt 1 ]]; then
+                task="$fam --n $n --chunk $k/$nchunks $COMMON"
+            else
+                task="$fam --n $n $COMMON"
+            fi
+            if [[ "$big" == "1" ]]; then
+                LARGE_TASKS+=("$task")
+            else
+                SMALL_TASKS+=("$task")
+            fi
+        done
     done
 done
 
@@ -120,7 +153,10 @@ if [[ "$MODE" == "manifest" ]]; then
         echo "  sbatch --array=1-$(wc -l < "$SMALL_MF") --export=ALL,CVK_MANIFEST=$SMALL_MF chol_vs_kcycle_array.sbatch"
     fi
     if [[ -s "$LARGE_MF" ]]; then
-        echo "  sbatch --array=1-$(wc -l < "$LARGE_MF") --mem=200G --time=72:00:00 --export=ALL,CVK_MANIFEST=$LARGE_MF chol_vs_kcycle_array.sbatch"
+        echo "  sbatch --array=1-$(wc -l < "$LARGE_MF") --mem=200G --time=48:00:00 --export=ALL,CVK_MANIFEST=$LARGE_MF chol_vs_kcycle_array.sbatch"
+        echo "  # chunked 1e6/1e7 chimeras fit in 48h; if a from-scratch run also"
+        echo "  # includes the biggest un-chunked fixed graphs (spielmanIPM k500/k600,"
+        echo "  # nnz~2e8 grids), bump that submission to --time=72:00:00."
     fi
     exit 0
 fi
