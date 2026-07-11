@@ -53,7 +53,13 @@ function structure(name, a)
 end
 
 function hierarchy(name, a)
-    (_, H) = cmg_preconditioner_lap(lap(a); cycle = :kcycle, eliminate = false)
+    local H
+    try
+        (_, H) = cmg_preconditioner_lap(lap(a); cycle = :kcycle, eliminate = false)
+    catch e
+        @printf("  %-22s BUILD ERROR: %s\n", name, sprint(showerror, e))
+        return
+    end
     ns = [Int(h.n) for h in H]
     ratios = [@sprintf("%.2f", ns[i+1] / ns[i]) for i in 1:length(ns)-1]
     @printf("  %-22s %d levels  sizes=%s\n", name, length(ns), join(ns, "->"))
@@ -68,7 +74,13 @@ function sketch(name, a)
     caps = [50, 100, 300, 1000, 3000, 10000]
     println("  $(name):")
     for (lbl, cyc, elim) in variants
-        (_, H) = cmg_preconditioner_lap(lap(a); cycle = cyc, eliminate = elim)
+        local H
+        try
+            (_, H) = cmg_preconditioner_lap(lap(a); cycle = cyc, eliminate = elim)
+        catch e
+            println("    $(rpad(lbl, 11)) BUILD ERROR: $(sprint(showerror, e))")
+            continue
+        end
         line = "    $(rpad(lbl, 11))"
         for cap in caps
             _, st = cmg_solve(H, b; tol = 1e-8, maxit = cap, cycle = cyc)
