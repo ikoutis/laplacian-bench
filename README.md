@@ -29,11 +29,11 @@ relative to `ac`** (the paper's ApproxChol baseline, ≡ 1.00×; >1 = faster tha
 | uniform_grid | 3 | 0.50× | 2.21× | 2.58× | **2.65×** |
 | spe | 5 | 0.69× | 1.80× | **2.51×** | **2.28×** |
 | suitesparse (Laplacian) | 3 | 0.77× | 1.11× | 1.38× | **1.51×** |
-| wted_chimera | 4 | 0.59× | 1.23× | 1.21× | **1.23×** |
+| uni_chimera | 4 | 0.59× | 0.84× | 1.05× | **1.28×** |
+| wted_chimera | 4 | 0.58× | 1.14× | 1.12× | **1.21×** |
 | chimeraIPM | 128 | 0.47× | 1.23× | 1.15× | **1.20×** |
-| uni_bndry_chimera | 4 | 0.66× | 0.86× | 1.07× | **1.17×** |
-| uni_chimera | 4 | 0.55× | 0.74× | 0.92× | **1.13×** |
-| wted_bndry_chimera | 4 | 0.66× | 1.12× | 1.19× | **1.10×** |
+| uni_bndry_chimera | 4 | 0.66× | 0.88× | 1.03× | **1.17×** |
+| wted_bndry_chimera | 4 | 0.68× | 1.08× | 1.14× | **1.07×** |
 | suitesparse (SDDM) | 25 | 0.75× | 1.04× | 1.08× | **1.02×** |
 | spielmanIPM | 61 | 0.65× | 0.13× | 0.20× | **0.99×** |
 
@@ -52,16 +52,16 @@ number that matters when one factorization serves many right-hand sides):
 | suitesparse (Laplacian) | **1.34×** | 0.66× | 0.97× | 0.96× |
 | suitesparse (SDDM) | **1.09×** | 0.89× | 0.89× | 0.81× |
 | uni_chimera | **1.11×** | 0.44× | 0.52× | 0.76× |
-| uni_bndry_chimera | **1.12×** | 0.44× | 0.49× | 0.74× |
-| wted_chimera | **1.08×** | 0.55× | 0.57× | 0.69× |
-| wted_bndry_chimera | **1.17×** | 0.48× | 0.52× | 0.65× |
+| uni_bndry_chimera | **1.10×** | 0.45× | 0.49× | 0.74× |
+| wted_chimera | **1.06×** | 0.55× | 0.57× | 0.69× |
+| wted_bndry_chimera | **1.12×** | 0.48× | 0.52× | 0.64× |
 | chimeraIPM | **0.92×** | 0.49× | 0.44× | 0.58× |
 
 **Summary.** On total time, `cmg-k-elim`'s per-family medians range from 6.9×
 (sachdeva_star) and 2.3–3.8× (the grid families and SPE) on the structured
 families down to roughly parity on the least favorable ones; its lowest family
 median is `spielmanIPM` at 0.99×, and the four random-chimera families all now
-sit between 1.10× and 1.23× (each row a median over the paper's per-size sample
+sit between 1.07× and 1.28× (each row a median over the paper's per-size sample
 counts, below). The columns separate the two CMG changes:
 
 - **The K-cycle** (`cmg-k` vs `cmg-legacy`) is 10–35% faster on the grids, SPE,
@@ -72,27 +72,48 @@ counts, below). The columns separate the two CMG changes:
   sachdeva) and larger where there are: on the near-tree `spielmanIPM` family,
   CMG without elimination runs at 0.13×/0.20× of `ac` (total), while
   `cmg-k-elim` is at parity on total time and 6.8× on solve. The random-chimera
-  families benefit too — elimination lifts `uni_chimera` from 0.92× (`cmg-k`) to
-  1.13× (`cmg-k-elim`) on total time.
+  families benefit too — elimination lifts `uni_chimera` from 1.05× (`cmg-k`) to
+  1.28× (`cmg-k-elim`) on total time.
 - **`ac-s2m2`** is 1.4–2× slower than plain `ac` except on `sachdeva_star`
   (2.02×), where plain `ac` stagnates.
 - On solve-only time `ac` and `ac-s2m2` are faster than the CMG variants on the
   unstructured families (chimeras, IPM-chimera); their totals there are
   build-dominated.
 
-`ac` and `ac-s2m2` converged on every instance. The three CMG variants recorded
-a failure on a small number of 10⁵-node chimera draws (at most 3 of 105 per
-family, all at n=10⁵), so those draws are excluded from the affected per-size
-medians (which remain over ≥102 samples). These are **not** slow-convergence
-cases: those specific chimera draws contain an isolated vertex, so the graph is
-disconnected, and CMG's hierarchy construction errors out on that degenerate
-input (it assumes a connected graph) — the failure is at build time, before any
-iteration. `ac` solves the same graphs (the isolated node sits at zero in the
-range-projected system). See `performance-experiments/diagnose_chimera_i35.jl`,
-which reconstructs `uni_chimera(100000, 35)` and shows the two components (sizes
-99999 + 1) and the build error. Plain `ac` reached a maximum relres of 1.5e-6 on the largest
-`sachdeva_star` instances (above the 1e-8 target); elsewhere all solvers stayed
-≤ 1e-8.
+All five solvers converged on every instance. A minority of the 10⁵ chimera
+draws are **disconnected** — they contain an isolated vertex or split into
+several components (the paper excludes no chimeras) — which CMG's connected-graph
+hierarchy cannot handle on its own: it errors at build time on an isolated vertex
+or stalls at the iteration cap with multiple components. Those draws are solved
+here by [CombinatorialMultigrid.jl](https://github.com/ikoutis/CombinatorialMultigrid.jl)'s
+per-component mode (`split_components`, the default): it detects the connected
+components and solves each independently, so the three CMG columns converge on
+them in ~30 iterations. With `split_components = false` these are exactly the
+draws that error/stall — see `performance-experiments/compare_split.jl` (8–20×
+faster with the knob on, and the isolated-vertex crash gone) and
+`diagnose_chimera_i35.jl`, which reconstructs `uni_chimera(100000, 35)` and its
+two components (sizes 99999 + 1). Plain `ac` reached a maximum relres of 1.5e-6
+on the largest `sachdeva_star` instances (above the 1e-8 target); elsewhere all
+solvers stayed ≤ 1e-8.
+
+**The slow chimera draws** had two causes. The largest slowdowns — where `ac`
+was 5–30× faster — were disconnected graphs: a chimera with several components
+(from a handful up to ~900) left the connected-graph preconditioner an uncovered
+nullspace dimension per extra component, so PCG ran the full 1000-iteration cap.
+These are **resolved by `split_components`** (above): with per-component solving
+they converge in ~30 iterations (8–20× faster; every *connected* draw already
+converged in under 60). A separate, smaller effect that **remains**
+(~2× on a minority of connected 10⁶ draws) is a **coarsening stall**: CMG never
+sparsifies at any point in the hierarchy, so an expander-like subgraph — which
+cluster-based coarsening cannot contract, and which no sparsification is present
+to thin — forces the build to keep adding levels that shrink by well under 1%
+each (18–23 levels versus the usual 4–6), inflating both the build and the
+per-iteration cost. The hierarchy's stagnation guard only fires on a *complete*
+stall (no contraction at all), so these slow-drip levels accumulate. This is a
+real limitation of the current preconditioner. See
+`performance-experiments/analyze_chimera_slow.jl` and `diagnose_chimera_slow.jl`,
+which find the slow draws and reconstruct their structure and coarsening
+hierarchy.
 
 **Worst case per family** (minimum per-instance total-time speedup of
 `cmg-k-elim` vs `ac` — how badly it can lose, and where):
@@ -148,11 +169,12 @@ skip — the default of
   sample counts** — 103 / 105 / 23 / 8 random graphs at 10⁴ / 10⁵ / 10⁶ / 10⁷
   respectively (≈239 graphs per family, `i = 1..C` as in the paper). So the
   chimera medians are robust, not single draws; the "4" in the instances column
-  is the number of size rows, not the graph count. A few 10⁵ draws (≤3 of 105
-  per family) are dropped from those size medians because CMG's build errors out
-  on them — they are disconnected (an isolated vertex), which CMG does not
-  support; `ac` solves them. This is a degenerate-input limitation, not a
-  convergence result (see above).
+  is the number of size rows, not the graph count. The 10⁵ chimera families were
+  re-run with `split_components` (CMG's per-component solve, now the default), so
+  the disconnected draws that previously errored/stalled are included and
+  converged — no draws are dropped. The rest of the suite predates that check,
+  which is harmless: it is a no-op on connected inputs (identical result), so
+  those numbers are unchanged.
 - This comparison covers the two ApproxChol solvers and the CMG variants only —
   not the paper's full external-solver sweep (LAMG, HyPre, PETSc, ICC,
   MATLAB-CMG).
