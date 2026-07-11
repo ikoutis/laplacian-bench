@@ -56,9 +56,12 @@ function load_rows(files, solvers)
                 if s in names
                     rec["$(s)_tot"] = Float64(dic["$(s)_tot"][i])
                     rec["$(s)_its"] = Float64(dic["$(s)_its"][i])
+                    rec["$(s)_build"] = haskey(dic, "$(s)_build") ? Float64(dic["$(s)_build"][i]) : NaN
+                    rec["$(s)_solve"] = haskey(dic, "$(s)_solve") ? Float64(dic["$(s)_solve"][i]) : NaN
                     rec["$(s)_inj"] = haskey(dic, "$(s)_inj") ? Float64(dic["$(s)_inj"][i]) : 0.0
                 else
                     rec["$(s)_tot"] = NaN; rec["$(s)_its"] = NaN; rec["$(s)_inj"] = 0.0
+                    rec["$(s)_build"] = NaN; rec["$(s)_solve"] = NaN
                 end
             end
             push!(rows, rec)
@@ -94,12 +97,18 @@ function report(rows, solvers)
         @printf("  injected levels on stalled draws: min %d, median %g, max %d\n",
                 Int(minimum(injs)), median(injs), Int(maximum(injs)))
 
-        println("  STALLED draws — median total s (median its):")
-        for s in solvers
-            t = medf(fin(Float64[r["$(s)_tot"] for r in stalled]))
-            it = medf(fin(Float64[r["$(s)_its"] for r in stalled]))
-            @printf("    %-16s %8s  (%s)\n", s, fmt(t), fmt(it))
+        # median total / build / solve / iters per solver over a row set
+        function breakdown(label, rs)
+            println("  $(label) — median total (build + solve) s, median its:")
+            for s in solvers
+                t  = medf(fin(Float64[r["$(s)_tot"] for r in rs]))
+                b  = medf(fin(Float64[r["$(s)_build"] for r in rs]))
+                sv = medf(fin(Float64[r["$(s)_solve"] for r in rs]))
+                it = medf(fin(Float64[r["$(s)_its"] for r in rs]))
+                @printf("    %-16s %8s = %7s + %7s  (%s its)\n", s, fmt(t), fmt(b), fmt(sv), fmt(it))
+            end
         end
+        breakdown("STALLED draws", stalled)
         println("  STALLED draws — per-draw median speedup (>1 = faster):")
         for s in SPARSIFY
             s in solvers || continue
@@ -127,13 +136,7 @@ function report(rows, solvers)
             end
         end
 
-        if !isempty(clean)
-            println("  CLEAN draws — median total s (for contrast):")
-            for s in solvers
-                t = medf(fin(Float64[r["$(s)_tot"] for r in clean]))
-                @printf("    %-16s %8s s\n", s, fmt(t))
-            end
-        end
+        isempty(clean) || breakdown("CLEAN draws (no injection — isolates fixed overhead)", clean)
     end
 end
 
