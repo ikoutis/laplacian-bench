@@ -14,13 +14,15 @@
 #
 # Defaults: --scale smoke; reps by scale (paper 3, medium 5, smoke 2); seed 1.
 # Environment overrides: CVK_SCALE, CVK_REPS, CVK_SEED, CVK_JULIA, CVK_EXTRA,
-# CVK_ONLY (space-separated family list — restrict to those families).
+# CVK_ONLY (space-separated family list — restrict to those families),
+# CVK_CHIMERA_SIZES (space-separated chimera size list, e.g. "1e6").
 #
 # Examples:
 #   ./run_chol_vs_kcycle.sh                                   # quick smoke pass
 #   ./run_chol_vs_kcycle.sh --scale medium --reps 5 --run
 #   ./run_chol_vs_kcycle.sh --scale paper --emit-manifest     # for Wulver
 #   CVK_EXTRA="--solvers ac,cmg-k" ./run_chol_vs_kcycle.sh    # subset of columns
+#   CVK_ONLY="uni_chimera" CVK_CHIMERA_SIZES="1e6" ./run_chol_vs_kcycle.sh
 
 set -u
 
@@ -51,18 +53,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$SCALE" in
-    smoke)  DEFAULT_REPS=2; CHIMERA_SIZES=(1e4) ;;
-    medium) DEFAULT_REPS=5; CHIMERA_SIZES=(1e4 1e5) ;;
-    paper)  DEFAULT_REPS=3; CHIMERA_SIZES=(1e4 1e5 1e6 1e7) ;;
+    smoke)  DEFAULT_REPS=2; DEFAULT_SIZES="1e4" ;;
+    medium) DEFAULT_REPS=5; DEFAULT_SIZES="1e4 1e5" ;;
+    paper)  DEFAULT_REPS=3; DEFAULT_SIZES="1e4 1e5 1e6 1e7" ;;
     *) echo "bad --scale $SCALE (want smoke|medium|paper)" >&2; exit 1 ;;
 esac
 REPS="${REPS:-$DEFAULT_REPS}"
+# Chimera size list, overridable so a run can target a single size, e.g. the
+# sparsify comparison's "1e6 chimeras only" start: CVK_CHIMERA_SIZES="1e6".
+read -r -a CHIMERA_SIZES <<< "${CVK_CHIMERA_SIZES:-$DEFAULT_SIZES}"
 
 COMMON="--scale $SCALE --reps $REPS --seed $SEED"
 [[ -n "$EXTRA" ]] && COMMON="$COMMON $EXTRA"
 
-# Families with a fixed instance sweep (one task each).
-FIXED_FAMILIES=(uniform_grid aniso wgrid checkered sachdeva_star suitesparse spe chimeraIPM spielmanIPM)
+# Families with a fixed instance sweep (one task each). dense_blob is the
+# artificial stall-reproducing family for the sparsify comparison (small graphs,
+# small tier).
+FIXED_FAMILIES=(uniform_grid aniso wgrid checkered sachdeva_star suitesparse spe chimeraIPM spielmanIPM dense_blob)
 # Chimera families run once per size (one task per family x size).
 CHIMERA_FAMILIES=(uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera)
 # At paper scale these need the big-memory tier (nnz~2e8 grids, spe16m, 1e7

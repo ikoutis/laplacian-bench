@@ -43,12 +43,18 @@ const DEFAULT_SOLVERS = ["ac", "ac-s2m2", "cmg-v", "cmg-k-elim"]
 # Stable family order (matches benchFamilies.jl FAMILY_ORDER) for output.
 const FAMILY_ORDER = ["uniform_grid", "aniso", "wgrid", "checkered",
     "sachdeva_star", "suitesparse", "spe", "chimeraIPM", "spielmanIPM",
+    "dense_blob",
     "uni_chimera", "uni_bndry_chimera", "wted_chimera", "wted_bndry_chimera"]
+
+# Solver columns whose build injects sparsify-on-stall levels (prefix match).
+# Used to decide which instances are "stall-triggered" (sparsify fired).
+is_sparsify_solver(s) = startswith(s, "cmg-sparsify")
 
 # Paper-scale instance counts for the families with a fixed sweep. IPM and SPE
 # are data-dependent (full ipmMat.zip sweep / manual SPE), reported as produced.
 const EXPECTED = Dict("uniform_grid" => 3, "aniso" => 7, "wgrid" => 7,
     "checkered" => 7, "sachdeva_star" => 15, "suitesparse" => 28,
+    "dense_blob" => 7,
     "uni_chimera" => 4, "uni_bndry_chimera" => 4, "wted_chimera" => 4,
     "wted_bndry_chimera" => 4)
 
@@ -92,13 +98,15 @@ function merge_samples(group, solvers)
         ts = [r.slv[s] for r in group if r.slv[s].ran]
         if isempty(ts)
             slv[s] = (build = NaN, solve = NaN, tot = NaN, its = NaN,
-                      err = NaN, fail = 0, runs = 0, ran = false)
+                      err = NaN, inj = 0.0, fail = 0, runs = 0, ran = false)
         else
             slv[s] = (build = medf(fin([t.build for t in ts])),
                       solve = medf(fin([t.solve for t in ts])),
                       tot   = medf(fin([t.tot for t in ts])),
                       its   = medf(fin([t.its for t in ts])),
                       err   = medf(fin([t.err for t in ts])),
+                      # max over samples: did sparsify fire on any draw of this size
+                      inj   = maximum(Float64[t.inj for t in ts]; init = 0.0),
                       fail  = sum(t.fail for t in ts),
                       runs  = sum(t.runs for t in ts),
                       ran   = true)
@@ -150,17 +158,22 @@ function aggregate(files, solvers)
                 if s in dic["names"]
                     tot = dic["$(s)_tot"][idx]
                     good = fin(tot)
+                    # sparsify injection count (max over reps: did it fire at
+                    # all on this instance). Absent in pre-sparsify result files.
+                    injvals = haskey(dic, "$(s)_inj") ?
+                              fin(Float64.(dic["$(s)_inj"][idx])) : Float64[]
                     slv[s] = (build = medf(fin(dic["$(s)_build"][idx])),
                               solve = medf(fin(dic["$(s)_solve"][idx])),
                               tot = medf(good),
                               its = medf(fin(dic["$(s)_its"][idx])),
                               err = medf(fin(dic["$(s)_err"][idx])),
+                              inj = isempty(injvals) ? 0.0 : maximum(injvals),
                               fail = length(tot) - length(good),
                               runs = length(idx),
                               ran = true)
                 else
                     slv[s] = (build = NaN, solve = NaN, tot = NaN, its = NaN,
-                              err = NaN, fail = 0, runs = 0, ran = false)
+                              err = NaN, inj = 0.0, fail = 0, runs = 0, ran = false)
                 end
             end
             push!(recs, (family = fam, matrix = String(tn), nv = nv, ne = ne, kind = kind, slv = slv))
@@ -176,7 +189,7 @@ function write_csv(path, recs, solvers)
         header = ["family", "matrix", "nv", "ne", "kind"]
         for s in solvers
             append!(header, ["$(s)_build_s", "$(s)_solve_s", "$(s)_tot_s",
-                             "$(s)_its", "$(s)_err", "$(s)_fail"])
+                             "$(s)_its", "$(s)_err", "$(s)_fail", "$(s)_inj"])
         end
         csvrow(io, header)
         for r in recs
@@ -184,7 +197,8 @@ function write_csv(path, recs, solvers)
             for s in solvers
                 t = r.slv[s]
                 append!(row, [csvnum(t.build), csvnum(t.solve), csvnum(t.tot),
-                              csvnum(t.its), csvnum(t.err), t.fail])
+                              csvnum(t.its), csvnum(t.err), t.fail,
+                              round(Int, t.inj)])
             end
             csvrow(io, row)
         end
@@ -284,6 +298,52 @@ function write_speedup_summary(io, recs, solvers)
     println(io)
 end
 
+# Max injected sparsify levels over the sparsify solvers on a record (0 if none
+# fired / no sparsify solver ran).
+rec_inj(r, sparsify) = maximum(Float64[r.slv[s].inj for s in sparsify]; init = 0.0)
+
+# Stall-triggered comparison. The user's protocol: chimera families are the
+# known-stall starting set (reported in full by the per-family tables below);
+# for every OTHER instance the sparsify comparison is only meaningful when the
+# hierarchy actually stalled and sparsify fired. This section lists exactly
+# those instances (max injected level count > 0 over the sparsify columns),
+# across all families, so "where did sparsify do something" is one glance.
+function write_stall_summary(io, recs, solvers)
+    sparsify = [s for s in solvers if is_sparsify_solver(s)]
+    isempty(sparsify) && return
+    rows = [r for r in recs if rec_inj(r, sparsify) > 0]
+    println(io, "## Stall-triggered comparison — instances where sparsify fired\n")
+    if isempty(rows)
+        println(io, "_No instance in this run triggered a sparsify injection ",
+                "(`inj = 0` everywhere): the hierarchy never stalled, so the ",
+                "sparsify columns are identical to `cmg-k-elim`._\n")
+        return
+    end
+    println(io, "`inj` = sparsify levels injected at build (max over the ",
+            "sparsify columns / over reps). Time is median total seconds with ",
+            "median iterations in parentheses. Chimera families also appear in ",
+            "their per-family tables below.\n")
+    header = vcat(["family", "matrix", "nv", "ne", "inj"], ["$(s)" for s in solvers])
+    println(io, "| ", join(header, " | "), " |")
+    println(io, "|", repeat("---|", length(header)))
+    for r in sort(rows; by = r -> (famkey(r.family), natkey(r.matrix)))
+        cells = String[]
+        for s in solvers
+            t = r.slv[s]
+            push!(cells, !t.ran ? "--" : !isfinite(t.tot) ? "FAIL" :
+                  string(fmt(t.tot), " (", fmt(t.its), ")", t.fail > 0 ? " [$(t.fail)f]" : ""))
+        end
+        base = [r.matrix, string(r.nv), string(r.ne), string(round(Int, rec_inj(r, sparsify)))]
+        println(io, "| ", join(vcat([r.family], base, cells), " | "), " |")
+    end
+    # mean injected levels per family over the stall-triggered rows
+    fams = unique([r.family for r in rows]); sort!(fams; by = famkey)
+    meanline = [string(f, " ", fmt(mean(Float64[rec_inj(r, sparsify) for r in rows if r.family == f])))
+                for f in fams]
+    println(io, "\nMean injected levels per family (stall-triggered rows): ",
+            join(meanline, ", "), ".\n")
+end
+
 # Emit one Markdown table (header + rows) plus a per-table accuracy line and a
 # median cmg-k-elim-vs-ac total-time speedup footer, for the given rows.
 function emit_md_table(io, title, rows, solvers)
@@ -330,6 +390,7 @@ function write_md(path, recs, solvers)
                 "SuiteSparse is split into Laplacian and SDDM tables (ne > ",
                 "$(NE_TABLE_MIN)) as in the paper.\n")
         write_speedup_summary(io, recs, solvers)
+        write_stall_summary(io, recs, solvers)
         fams = unique([r.family for r in recs])
         sort!(fams; by = famkey)
         for fam in fams
@@ -503,6 +564,40 @@ function selftest()
         @assert count(r -> r.family == "uni_chimera", chrecs) == 2 "2 collapsed uni_chimera size rows"
         chcov = joinpath(dir, "ch.cov"); write_coverage(chcov, chrecs, solvers)
         @assert occursin(r"uni_chimera\s+2 / 4", read(chcov, String)) "coverage counts collapsed size rows (2/4)"
+
+        # --- sparsify injection column + stall-triggered summary ---
+        sp = Dict{String,Any}()
+        sp["names"] = ["ac", "cmg-sparsify-l"]
+        # two instances: "stalls" injects levels, "clean" never does
+        sp["testName"] = ["stalls", "stalls", "clean", "clean"]
+        sp["nv"] = [500, 500, 400, 400]
+        sp["ne"] = [8000, 8000, 3000, 3000]
+        sp["kind"] = ["lap", "lap", "lap", "lap"]
+        for s in ("ac", "cmg-sparsify-l"), col in ("build", "solve", "tot", "its", "err")
+            sp["$(s)_$(col)"] = [1.0, 1.0, 1.0, 1.0]
+        end
+        sp["ac_inj"] = [0, 0, 0, 0]              # ac never injects
+        sp["cmg-sparsify-l_inj"] = [2, 3, 0, 0]  # fired on "stalls" only
+        fsp = joinpath(dir, "dense_blob.paper.seed1.reps2.jld2")
+        JLD2.save(fsp, "dic", sp)
+        spsolvers = ["ac", "cmg-sparsify-l"]
+        sprecs = aggregate([fsp], spsolvers)
+        rstall = sprecs[findfirst(r -> r.matrix == "stalls", sprecs)]
+        rclean = sprecs[findfirst(r -> r.matrix == "clean", sprecs)]
+        @assert rstall.slv["cmg-sparsify-l"].inj == 3.0 "inj = max over reps (2,3) = 3"
+        @assert rclean.slv["cmg-sparsify-l"].inj == 0.0 "clean instance never injected"
+        @assert rstall.slv["ac"].inj == 0.0 "ac advertises 0 injections"
+        spcsv = joinpath(dir, "sp.csv"); write_csv(spcsv, sprecs, spsolvers)
+        spmd  = joinpath(dir, "sp.md");  write_md(spmd, sprecs, spsolvers)
+        spcsvt = read(spcsv, String); spmdt = read(spmd, String)
+        @assert occursin("cmg-sparsify-l_inj", spcsvt) "inj column present in CSV header"
+        @assert occursin("Stall-triggered comparison", spmdt) "stall summary section present"
+        # the stall table lists "stalls" (inj>0) but not "clean" (inj=0)
+        stallsec = split(spmdt, "## Stall-triggered")[2]
+        stallsec = split(stallsec, "\n## ")[1]
+        @assert occursin("| stalls |", stallsec) "stalled instance listed in stall table"
+        @assert !occursin("| clean |", stallsec) "non-stalled instance excluded from stall table"
+        @assert occursin("dense_blob 3", stallsec) "mean injected levels per family reported"
 
         println("make_paper_tables selftest: PASSED")
     end

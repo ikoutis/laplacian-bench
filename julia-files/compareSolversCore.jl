@@ -19,8 +19,10 @@ Differences from compareSolvers.jl, all additive:
   * function names differ (testSolverCore, coreTestLap, coreTestSddm) so this
     file can be loaded alongside compareSolvers.jl without method clashes.
 
-The result-dictionary schema is otherwise identical:
-  nv, ne, testName, names, and {name}_solve/_build/_tot/_its/_err.
+The result-dictionary schema is otherwise identical, plus one additive column:
+  nv, ne, testName, names, and {name}_solve/_build/_tot/_its/_err/_inj
+  (_inj = sparsify-on-stall levels injected at build; 0 for non-sparsify
+  solvers; old notebooks index specific keys, so they are unaffected).
 ===========================================================#
 
 using Laplacians
@@ -64,6 +66,11 @@ function pushSpeedResult!(dic, name, ret)
     push!(dic["$(name)_tot"], ret[1] + ret[2])
     push!(dic["$(name)_its"], ret[3])
     push!(dic["$(name)_err"], ret[4])
+    # ret[6] is the number of sparsify-on-stall levels injected at build time
+    # (0 for solvers without a sparsify hierarchy — ac, plain/elim CMG on a
+    # non-stalling instance). Used by make_paper_tables.jl to filter the
+    # "other families" comparison to instances where sparsify actually fired.
+    push!(dic["$(name)_inj"], ret[6])
 end
 
 # Deterministic per-solver seed. `baseseed === nothing` disables seeding.
@@ -75,8 +82,10 @@ Time one native solver on one system. `mat` is whatever the solver consumes
 (an adjacency matrix for Laplacian solvers, the SDDM matrix itself for SDDM
 solvers); `sys` is the system matrix used for the residual check (lap(mat) in
 the Laplacian case, mat itself in the SDDM case). Returns
-(solve_time, build_time, iters, relerr, x), or (Inf,Inf,Inf,Inf,Inf) if the
-solver threw. This is a general safety net: the curated benchmark matrices are
+(solve_time, build_time, iters, relerr, x, n_inject), or (Inf,Inf,Inf,Inf,Inf,0)
+if the solver threw. `n_inject` is read from the built solver's `n_inject`
+property when present (the CMG sparsify-on-stall columns advertise it) and is 0
+otherwise. This is a general safety net: the curated benchmark matrices are
 all SDDM / near-SDDM (see Tutorial.md), so no benchmark input trips CMG's
 validateInput!, but it guards against an asymmetric or arbitrary user-supplied
 matrix (validateInput! throws on asymmetry or a positive off-diagonal).
@@ -92,6 +101,11 @@ function testSolverCore(solver, mat, sys, b, tol, maxits, verbose; seed = nothin
         f = solver(mat, tol = tol, maxits = maxits, verbose = verbose)
         build_time = time() - t0
 
+        # Sparsify-on-stall columns wrap their solve closure in a CMGSolve that
+        # advertises the injected-level count; every other solver returns a
+        # plain closure with no such property, so this reads 0 for them.
+        inj = hasproperty(f, :n_inject) ? Int(f.n_inject) : 0
+
         it = [0]
         GC.gc()
 
@@ -101,14 +115,14 @@ function testSolverCore(solver, mat, sys, b, tol, maxits, verbose; seed = nothin
 
         err = norm(sys * x .- b) / norm(b)
 
-        ret = (solve_time, build_time, it[1], err, x)
+        ret = (solve_time, build_time, it[1], err, x, inj)
         if verbose
-            println("Solve time, build time, iter, err:", (solve_time, build_time, it[1], err))
+            println("Solve time, build time, iter, err, inj:", (solve_time, build_time, it[1], err, inj))
         end
         return ret
     catch e
         println("Solver Error: ", sprint(showerror, e))
-        return (Inf, Inf, Inf, Inf, Inf)
+        return (Inf, Inf, Inf, Inf, Inf, 0)
     end
 
 end
@@ -129,6 +143,7 @@ function coreTestRun(solvers, dic::Dict, mat, sys, b;
     totcol(name) = "$(name)_tot"
     itscol(name) = "$(name)_its"
     errcol(name) = "$(name)_err"
+    injcol(name) = "$(name)_inj"
 
     dic["names"] = String[]
     for t in solvers
@@ -141,6 +156,7 @@ function coreTestRun(solvers, dic::Dict, mat, sys, b;
         initDictCol!(dic, totcol(name), Float64)
         initDictCol!(dic, itscol(name), Float64)
         initDictCol!(dic, errcol(name), Float64)
+        initDictCol!(dic, injcol(name), Int)
     end
 
     push!(dic["nv"], size(sys, 1))

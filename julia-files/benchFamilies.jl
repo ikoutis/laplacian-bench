@@ -30,6 +30,7 @@ matrix-files/ and are never deleted.
 using Laplacians
 using SparseArrays
 using LinearAlgebra
+using Random
 using JLD2
 using MAT
 using MatrixMarket
@@ -435,6 +436,103 @@ function wted_bndry_chimera_fixed(n::Integer, k::Integer)
     return L[int, int]
 end
 
+# ------------------------------------------------- artificial dense (sparsify)
+#
+# Deterministic synthetic graphs that reproduce CMG's aggregation *stall*: dense
+# blobs (fill-like levels) and chains of dense blobs joined by weak cuts. They
+# make standard aggregation refuse to coarsen, so the sparsify-on-stall columns
+# actually inject levels and the comparison is exercised without needing a real
+# stalled chimera. Generators are vendored verbatim from the CMG-python port
+# (`CombinatorialMultigrid.jl/experiments/sparsified/graphs.jl`,
+# `dense_blob_adj` / `blob_chain_adj` / `dense_blob_pair_bridge_adj`); kept here
+# so the harness has no dependency on that experiments file. They return
+# ADJACENCY matrices (the `:lap` convention: residual against `lap(a)`).
+
+function dense_blob_adj(n::Int; avgdeg::Int = 32, seed::Int = 0)
+    local rng = MersenneTwister(seed)
+    local es = Set{Tuple{Int64,Int64}}()
+    for v = 2:n
+        local p = rand(rng, 1:v-1)
+        push!(es, (min(v, p), max(v, p)))
+    end
+    while length(es) < n * avgdeg ÷ 2
+        local u = rand(rng, 1:n)
+        local v = rand(rng, 1:n)
+        u != v && push!(es, (min(u, v), max(u, v)))
+    end
+    local I = Int64[]; local J = Int64[]; local V = Float64[]
+    for (u, v) in es
+        push!(I, u); push!(J, v); push!(V, 1.0)
+        push!(I, v); push!(J, u); push!(V, 1.0)
+    end
+    return sparse(I, J, V, n, n)
+end
+
+function blob_chain_adj(nblobs::Int, blobn::Int; avgdeg::Int = 40, seed::Int = 7,
+                        wbridge::Float64 = 1e-2)
+    local rng = MersenneTwister(seed)
+    local I = Int64[]; local J = Int64[]; local V = Float64[]
+    for k = 0:nblobs-1
+        local off = k * blobn
+        local B = dense_blob_adj(blobn; avgdeg = avgdeg, seed = seed + k)
+        local rv = rowvals(B); local nz = nonzeros(B)
+        for j = 1:blobn, p in nzrange(B, j)
+            push!(I, rv[p] + off); push!(J, j + off); push!(V, nz[p])
+        end
+        if k > 0
+            local a = (k - 1) * blobn + rand(rng, 1:blobn)
+            local b = off + rand(rng, 1:blobn)
+            push!(I, a); push!(J, b); push!(V, wbridge)
+            push!(I, b); push!(J, a); push!(V, wbridge)
+        end
+    end
+    return sparse(I, J, V, nblobs * blobn, nblobs * blobn)
+end
+
+function dense_blob_pair_bridge_adj(n::Int; avgdeg::Int = 32, seed::Int = 2,
+                                    wbridge::Float64 = 1e-3)
+    local h = n ÷ 2
+    local Ab = blockdiag(dense_blob_adj(h; avgdeg = avgdeg, seed = seed),
+                         dense_blob_adj(n - h; avgdeg = avgdeg, seed = seed + 100))
+    return Ab + sparse([1, h + 1], [h + 1, 1], [wbridge, wbridge], n, n)
+end
+
+# adjacency-generator counterpart of sddmInstance (kind = :lap)
+denseInstance(base, label, gen) =
+    BenchInstance(base, (baseseed, rep) -> (:lap, gen(), label))
+
+function denseBlobInstances(scale; n = nothing, limit = nothing)
+    # (nblobs, blobn, avgdeg, wbridge, seed) chain configs, from the port's
+    # bench_cycles CONFIGS; scaled down for :medium/:smoke.
+    chains = scale === :paper  ? [(6, 150, 40, 1e-2, 7), (10, 100, 40, 1e-2, 5),
+                                  (4, 250, 56, 1e-3, 9), (8, 140, 52, 1e-3, 11)] :
+             scale === :medium ? [(6, 100, 40, 1e-2, 7), (4, 120, 48, 1e-3, 9)] :
+                                 [(4, 60, 32, 1e-2, 7)]
+    blobs  = scale === :paper  ? [(1000, 48, 1), (1500, 64, 3)] :
+             scale === :medium ? [(800, 40, 1)] :
+                                 [(400, 32, 1)]
+    pairs  = scale === :paper  ? [(1200, 40, 1e-3, 2)] :
+             scale === :medium ? [(800, 40, 1e-3, 2)] :
+                                 [(400, 32, 1e-3, 2)]
+    insts = BenchInstance[]
+    for (nb, bn, ad, wb, sd) in chains
+        push!(insts, denseInstance("blob_chain nb=$(nb) bn=$(bn)",
+              "blob_chain_adj($(nb),$(bn);avgdeg=$(ad),wbridge=$(wb),seed=$(sd))",
+              () -> blob_chain_adj(nb, bn; avgdeg = ad, wbridge = wb, seed = sd)))
+    end
+    for (nn, ad, sd) in blobs
+        push!(insts, denseInstance("dense_blob n=$(nn) avgdeg=$(ad)",
+              "dense_blob_adj($(nn);avgdeg=$(ad),seed=$(sd))",
+              () -> dense_blob_adj(nn; avgdeg = ad, seed = sd)))
+    end
+    for (nn, ad, wb, sd) in pairs
+        push!(insts, denseInstance("dense_blob_pair n=$(nn)",
+              "dense_blob_pair_bridge_adj($(nn);avgdeg=$(ad),wbridge=$(wb),seed=$(sd))",
+              () -> dense_blob_pair_bridge_adj(nn; avgdeg = ad, wbridge = wb, seed = sd)))
+    end
+    return applyLimit(insts, limit)
+end
+
 # ---------------------------------------------------------------- registry
 
 const FAMILIES = Dict{String,BenchFamily}(
@@ -447,6 +545,7 @@ const FAMILIES = Dict{String,BenchFamily}(
     "spe"          => BenchFamily("spe", 5e-9, false, speInstances),
     "chimeraIPM"   => BenchFamily("chimeraIPM", 1e-8, false, chimeraIPMInstances),
     "spielmanIPM"  => BenchFamily("spielmanIPM", 1e-8, false, spielmanIPMInstances),
+    "dense_blob"   => BenchFamily("dense_blob", 1e-8, false, denseBlobInstances),
     "uni_chimera" => BenchFamily("uni_chimera", 1e-8, true,
         (scale; n = nothing, limit = nothing) ->
             chimeraInstances(uni_chimera, "uni_chimera", :lap, scale; n = n, limit = limit)),
@@ -465,6 +564,6 @@ const FAMILIES = Dict{String,BenchFamily}(
 const FAMILY_ORDER = [
     "uniform_grid", "aniso", "wgrid", "checkered",
     "sachdeva_star", "suitesparse", "spe",
-    "chimeraIPM", "spielmanIPM",
+    "chimeraIPM", "spielmanIPM", "dense_blob",
     "uni_chimera", "uni_bndry_chimera", "wted_chimera", "wted_bndry_chimera",
 ]

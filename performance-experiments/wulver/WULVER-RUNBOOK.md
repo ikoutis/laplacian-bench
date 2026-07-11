@@ -215,6 +215,78 @@ prefer D.1 (detached, logged) or D.2 (foreground).
 
 ---
 
+## Part E — Sparsify-on-stall benchmark comparison
+
+Compares `ac`, `cmg-k-elim` (reference), and the two sparsify-on-stall columns
+`cmg-sparsify-l` (:legacy) and `cmg-sparsify-ks` (:kscycle), which inject a
+spanner + uniform spectral-sparsifier level when CMG aggregation stalls (both
+build with `eliminate=true`). New `_inj` column records injected levels per
+solver per instance; `make_paper_tables.jl` emits a **Stall-triggered
+comparison** section listing every instance where sparsify fired (`inj > 0`).
+
+### E.1 Pin the CMG branch (login node)
+The benchmark's dev-linked CMG (B.3) must be on the feature branch, which adds a
+`DataStructures` dependency — so re-resolve:
+```bash
+cd /project/ikoutis/github/laplacian-bench/CombinatorialMultigrid.jl
+git fetch origin claude/julia-sparsify-on-stall
+git checkout claude/julia-sparsify-on-stall && git pull origin claude/julia-sparsify-on-stall
+cd /project/ikoutis/github/laplacian-bench
+git fetch origin claude/cmg-degree-elimination-qwi3iq
+git checkout claude/cmg-degree-elimination-qwi3iq && git pull origin claude/cmg-degree-elimination-qwi3iq
+julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.instantiate()'   # picks up DataStructures
+```
+Then precompile once on a **compute** node (B.4) and confirm `pathof` points at
+the nested checkout.
+
+The four columns for every run:
+```bash
+export PAPER_SOLVERS="ac,cmg-k-elim,cmg-sparsify-l,cmg-sparsify-ks"
+```
+
+### E.2 Run 1 — chimeras at 1e6 (the known-stall set)
+```bash
+cd /project/ikoutis/github/laplacian-bench/performance-experiments
+CVK_ONLY="uni_chimera uni_bndry_chimera wted_chimera wted_bndry_chimera" \
+CVK_CHIMERA_SIZES="1e6" \
+PAPER_SOLVERS="$PAPER_SOLVERS" CVK_REPS=3 \
+  ./run_paper_comparison.sh submit --scale paper --account ikoutis
+```
+1e6 chimera chunks route to the large tier (`--mem=200G --time=48:00:00`,
+`--chunk` core-parallel, whole instances per node → same-node-per-instance).
+
+### E.3 Run 2 — other families, stall-triggered only
+Run the remaining families; the comparison is only meaningful where sparsify
+fired, which the Stall-triggered table surfaces (rows with `inj = 0` stay in the
+full per-family tables but are not in that section):
+```bash
+CVK_ONLY="uniform_grid aniso wgrid checkered sachdeva_star suitesparse spe chimeraIPM spielmanIPM" \
+PAPER_SOLVERS="$PAPER_SOLVERS" CVK_REPS=3 \
+  ./run_paper_comparison.sh submit --scale paper --account ikoutis
+```
+
+### E.4 Run 3 — artificial dense instances (deterministic stalls)
+```bash
+CVK_ONLY="dense_blob" PAPER_SOLVERS="$PAPER_SOLVERS" CVK_REPS=3 \
+  ./run_paper_comparison.sh submit --scale paper --account ikoutis
+```
+`dense_blob` is small (≤1500-node blobs / blob chains from the CMG-python port);
+it stays on the small tier and every instance stalls, so all four columns run.
+
+### E.5 Summarize + commit
+```bash
+# compute node, after the jobs finish:
+julia --project=.. make_paper_tables.jl \
+  --solvers ac,cmg-k-elim,cmg-sparsify-l,cmg-sparsify-ks
+# sanity self-test of the table/inj/stall logic (no data needed):
+julia --project=.. make_paper_tables.jl --selftest
+```
+Then commit `performance-analyses/chol-vs-kcycle/{paper_comparison.csv,paper_comparison.md,coverage.txt}`
+per Part C step 4. Read the **Stall-triggered comparison** section and the mean
+injected-levels line to see where and how hard sparsify fired.
+
+---
+
 ## Gotchas (the ones that bit us)
 - **Precompile only on compute** — login OOM-kills it.
 - **`module load Julia/1.11.9` explicitly** — bare `Julia` is 1.12.6.
