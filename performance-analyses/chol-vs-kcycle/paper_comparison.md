@@ -18,10 +18,10 @@ Median per-family speedup of `cmg-k-elim` (>1 = `cmg-k-elim` faster). `total` = 
 | spe | 5 | 2.28x | 1.04x | 1.25x | 1.29x | 1.00x | 1.01x |
 | chimeraIPM | 128 | 1.20x | 0.584x | 0.96x | 1.17x | 1.06x | 1.34x |
 | spielmanIPM | 61 | 0.988x | 6.80x | 7.97x | 194x | 4.90x | 118x |
-| uni_chimera | 4 | 1.13x | 0.763x | 1.42x | 1.75x | 1.22x | 1.46x |
-| uni_bndry_chimera | 4 | 1.17x | 0.739x | 1.24x | 1.71x | 1.10x | 1.50x |
-| wted_chimera | 4 | 1.23x | 0.692x | 1.02x | 1.19x | 1.01x | 1.17x |
-| wted_bndry_chimera | 4 | 1.10x | 0.65x | 1.02x | 1.31x | 0.996x | 1.20x |
+| uni_chimera | 4 | 1.28x | 0.763x | 1.41x | 1.82x | 1.21x | 1.52x |
+| uni_bndry_chimera | 4 | 1.17x | 0.739x | 1.21x | 1.70x | 1.11x | 1.50x |
+| wted_chimera | 4 | 1.21x | 0.692x | 1.03x | 1.20x | 1.04x | 1.17x |
+| wted_bndry_chimera | 4 | 1.07x | 0.644x | 1.02x | 1.24x | 1.02x | 1.15x |
 
 Worst case per family — minimum per-instance total-time speedup, and the instance it occurs on:
 
@@ -388,19 +388,19 @@ Median cmg-k-elim vs ac total-time speedup: 0.99x over 61 instances.
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
 | uni_chimera(n=10000, 103 samples) | 10000 | 50860 | 0.0314 (20.00) | 0.0489 (16.00) | 0.0462 (29.00) | 0.0422 (29.00) | 0.0376 (24.00) |
-| uni_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.587 (22.00) | 1.09 (17.00) | 0.885 (31.00) [3f] | 0.757 (30.00) [3f] | 0.632 (26.00) [2f] |
+| uni_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.488 (22.00) | 0.793 (17.00) | 0.557 (32.00) | 0.471 (30.00) | 0.402 (26.00) |
 | uni_chimera(n=1000000, 23 samples) | 1000000 | 7382752 | 6.64 (25.00) | 11.73 (18.00) | 5.98 (34.00) | 5.23 (32.00) | 4.18 (28.00) |
 | uni_chimera(n=10000000, 8 samples) | 10000000 | 60510273 | 107 (27.00) | 204 (19.00) | 135 (44.50) | 101 (35.00) | 80.00 (26.50) |
 
 Max relres: ac 8.13e-09, ac-s2m2 7.64e-09, cmg-v 8.38e-09, cmg-k 8.1e-09, cmg-k-elim 7.13e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.13x over 4 instances.
+Median cmg-k-elim vs ac total-time speedup: 1.28x over 4 instances.
 
 ## uni_bndry_chimera  (4 instances)
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
 | uni_bndry_chimera(n=9545, 103 samples) | 9545 | 46771 | 0.016 (18.00) | 0.022 (15.00) | 0.02 (25.00) | 0.0184 (25.00) | 0.0164 (22.00) |
-| uni_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.287 (20.00) | 0.442 (16.00) | 0.319 (29.00) [2f] | 0.277 (28.00) [2f] | 0.254 (24.00) [1f] |
+| uni_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.416 (20.00) | 0.642 (16.00) | 0.446 (28.00) | 0.435 (27.00) | 0.368 (24.00) |
 | uni_bndry_chimera(n=990000, 23 samples) | 990000 | 7245708 | 5.91 (23.00) | 10.47 (17.00) | 4.68 (31.00) | 4.03 (31.00) | 4.30 (27.00) |
 | uni_bndry_chimera(n=9953703, 8 samples) | 9953703 | 59997346 | 93.52 (26.00) | 140 (18.50) | 114 (40.00) | 85.40 (33.50) | 77.56 (25.00) |
 
@@ -412,22 +412,22 @@ Median cmg-k-elim vs ac total-time speedup: 1.17x over 4 instances.
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
 | wted_chimera(n=10000, 103 samples) | 10000 | 50860 | 0.0154 (17.00) | 0.024 (13.00) | 0.02 (23.00) | 0.0192 (23.00) | 0.0189 (20.00) |
-| wted_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.352 (18.00) | 0.609 (14.00) | 0.275 (23.00) [1f] | 0.267 (22.00) [1f] | 0.264 (20.00) [1f] |
+| wted_chimera(n=100000, 105 samples) | 100000 | 631920 | 0.443 (18.00) | 0.803 (14.00) | 0.403 (23.00) | 0.392 (22.00) | 0.361 (20.00) |
 | wted_chimera(n=1000000, 23 samples) | 1000000 | 7382752 | 6.59 (23.00) | 11.02 (16.00) | 4.68 (25.00) | 4.50 (23.00) | 5.21 (22.00) |
 | wted_chimera(n=10000000, 8 samples) | 10000000 | 60510273 | 95.38 (26.00) | 174 (18.00) | 80.13 (28.00) | 86.43 (27.50) | 80.38 (23.00) |
 
-Max relres: ac 7.86e-09, ac-s2m2 6.26e-09, cmg-v 8.53e-09, cmg-k 7.36e-09, cmg-k-elim 6.43e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.23x over 4 instances.
+Max relres: ac 7.86e-09, ac-s2m2 6.26e-09, cmg-v 8.53e-09, cmg-k 7.33e-09, cmg-k-elim 6.3e-09.
+Median cmg-k-elim vs ac total-time speedup: 1.21x over 4 instances.
 
 ## wted_bndry_chimera  (4 instances)
 
 | matrix | nv | ne | ac | ac-s2m2 | cmg-v | cmg-k | cmg-k-elim |
 |---|---|---|---|---|---|---|---|
 | wted_bndry_chimera(n=9545, 103 samples) | 9545 | 46771 | 0.014 (15.00) | 0.0206 (13.00) | 0.0163 (22.00) | 0.0161 (22.00) | 0.0152 (19.00) |
-| wted_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.316 (16.00) | 0.492 (13.00) | 0.273 (22.00) [1f] | 0.259 (23.00) [1f] | 0.256 (20.00) [1f] |
+| wted_bndry_chimera(n=97872, 105 samples) | 97872 | 607350 | 0.421 (16.00) | 0.577 (13.00) | 0.393 (22.00) | 0.375 (22.00) | 0.356 (20.00) |
 | wted_bndry_chimera(n=990000, 23 samples) | 990000 | 7245708 | 6.53 (20.00) | 10.69 (16.00) | 3.73 (24.00) | 3.73 (24.00) | 3.80 (22.00) |
 | wted_bndry_chimera(n=9953703, 8 samples) | 9953703 | 59997346 | 80.68 (24.00) | 118 (18.00) | 74.21 (29.00) | 69.18 (24.00) | 84.18 (23.50) |
 
 Max relres: ac 7.78e-09, ac-s2m2 6.69e-09, cmg-v 8.9e-09, cmg-k 7.24e-09, cmg-k-elim 6.46e-09.
-Median cmg-k-elim vs ac total-time speedup: 1.10x over 4 instances.
+Median cmg-k-elim vs ac total-time speedup: 1.07x over 4 instances.
 
