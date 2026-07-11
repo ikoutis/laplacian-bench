@@ -80,11 +80,17 @@ counts, below). The columns separate the two CMG changes:
   unstructured families (chimeras, IPM-chimera); their totals there are
   build-dominated.
 
-`ac` and `ac-s2m2` converged on every instance. The three CMG variants missed
-the 1e-8 tolerance within the 1000-iteration cap on a small number of 10⁵-node
-chimera draws — at most 3 of 105 per family, all at n=10⁵ — so those draws are
-excluded from the affected per-size medians (which remain over ≥102 converged
-samples). Plain `ac` reached a maximum relres of 1.5e-6 on the largest
+`ac` and `ac-s2m2` converged on every instance. The three CMG variants recorded
+a failure on a small number of 10⁵-node chimera draws (at most 3 of 105 per
+family, all at n=10⁵), so those draws are excluded from the affected per-size
+medians (which remain over ≥102 samples). These are **not** slow-convergence
+cases: those specific chimera draws contain an isolated vertex, so the graph is
+disconnected, and CMG's hierarchy construction errors out on that degenerate
+input (it assumes a connected graph) — the failure is at build time, before any
+iteration. `ac` solves the same graphs (the isolated node sits at zero in the
+range-projected system). See `performance-experiments/diagnose_chimera_i35.jl`,
+which reconstructs `uni_chimera(100000, 35)` and shows the two components (sizes
+99999 + 1) and the build error. Plain `ac` reached a maximum relres of 1.5e-6 on the largest
 `sachdeva_star` instances (above the 1e-8 target); elsewhere all solvers stayed
 ≤ 1e-8.
 
@@ -142,9 +148,11 @@ skip — the default of
   sample counts** — 103 / 105 / 23 / 8 random graphs at 10⁴ / 10⁵ / 10⁶ / 10⁷
   respectively (≈239 graphs per family, `i = 1..C` as in the paper). So the
   chimera medians are robust, not single draws; the "4" in the instances column
-  is the number of size rows, not the graph count. A few 10⁵ draws did not
-  converge for the CMG variants (≤3 of 105 per family) and are dropped from
-  those size medians, as noted above.
+  is the number of size rows, not the graph count. A few 10⁵ draws (≤3 of 105
+  per family) are dropped from those size medians because CMG's build errors out
+  on them — they are disconnected (an isolated vertex), which CMG does not
+  support; `ac` solves them. This is a degenerate-input limitation, not a
+  convergence result (see above).
 - This comparison covers the two ApproxChol solvers and the CMG variants only —
   not the paper's full external-solver sweep (LAMG, HyPre, PETSc, ICC,
   MATLAB-CMG).
