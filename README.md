@@ -94,6 +94,24 @@ which reconstructs `uni_chimera(100000, 35)` and shows the two components (sizes
 `sachdeva_star` instances (above the 1e-8 target); elsewhere all solvers stayed
 ≤ 1e-8.
 
+**The slow-but-converged chimera draws** split the same way. The largest
+slowdowns — where `ac` is 5–30× faster — are again disconnected graphs: a
+chimera with several components (from a handful up to ~900) leaves CMG's
+preconditioner an uncovered nullspace dimension per extra component, so PCG runs
+the full 1000-iteration cap and only just converges (`ac` is unaffected). Every
+*connected* draw converges in under 60 iterations. A separate, smaller effect
+(~2× on a minority of connected 10⁶ draws) is a **coarsening stall**: CMG never
+sparsifies at any point in the hierarchy, so an expander-like subgraph — which
+cluster-based coarsening cannot contract, and which no sparsification is present
+to thin — forces the build to keep adding levels that shrink by well under 1%
+each (18–23 levels versus the usual 4–6), inflating both the build and the
+per-iteration cost. The hierarchy's stagnation guard only fires on a *complete*
+stall (no contraction at all), so these slow-drip levels accumulate. This is a
+real limitation of the current preconditioner. See
+`performance-experiments/analyze_chimera_slow.jl` and `diagnose_chimera_slow.jl`,
+which find the slow draws and reconstruct their structure and coarsening
+hierarchy.
+
 **Worst case per family** (minimum per-instance total-time speedup of
 `cmg-k-elim` vs `ac` — how badly it can lose, and where):
 
